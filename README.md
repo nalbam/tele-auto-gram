@@ -126,6 +126,7 @@ RESPONSE_DELAY_MIN=3
 RESPONSE_DELAY_MAX=10
 LOG_LEVEL=INFO
 HOST=0.0.0.0
+PORT=5000
 WEB_TOKEN=
 SECRET_KEY=
 ```
@@ -149,6 +150,7 @@ tele-auto-gram/
 ├── ai.py                # AI response generation (OpenAI)
 ├── config.py            # Configuration management
 ├── storage.py           # Message storage management
+├── ctl.sh               # Control script (background/service management)
 ├── requirements.txt     # Dependencies
 ├── .env.example         # Environment variable example
 ├── CLAUDE.md            # AI coding assistant instructions

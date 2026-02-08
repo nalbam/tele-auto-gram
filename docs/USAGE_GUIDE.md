@@ -52,4 +52,6 @@ You can send messages directly to a conversation partner from the web UI:
 
 ## Stopping the Bot
 
-Press `Ctrl + C` to stop the bot.
+- **Foreground**: Press `Ctrl + C`
+- **Background**: `./ctl.sh stop`
+- **Service**: `./ctl.sh svc-stop`

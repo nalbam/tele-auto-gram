@@ -61,11 +61,11 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ## Configuration
 
 Required env vars (or set via web UI): `API_ID`, `API_HASH`, `PHONE` (with country code like +82).
-Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESPONSE_DELAY_MIN`, `RESPONSE_DELAY_MAX`, `LOG_LEVEL`, `HOST`, `WEB_TOKEN`, `SECRET_KEY`.
+Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESPONSE_DELAY_MIN`, `RESPONSE_DELAY_MAX`, `LOG_LEVEL`, `HOST`, `PORT`, `WEB_TOKEN`, `SECRET_KEY`.
 
 AI identity/persona is defined in `data/IDENTITY.md` (auto-created with defaults if missing, editable via web UI).
 
-Config priority: `data/config.json` > `.env.local` > `.env` > environment variables. File config has highest priority; `.env.local` overrides `.env`.
+Config priority: `data/config.json` > `.env.local` > environment variables > `.env`. File config has highest priority; `.env.local` overrides env vars; `.env` only fills in variables not already set.
 
 ## Data Storage
 
