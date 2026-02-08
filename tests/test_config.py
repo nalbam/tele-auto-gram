@@ -102,6 +102,42 @@ def test_safe_int_invalid():
     assert config._safe_int('', 3) == 3
 
 
+def test_safe_bool_true_values():
+    """_safe_bool correctly identifies truthy values"""
+    import config
+    assert config._safe_bool(True, False) is True
+    assert config._safe_bool('true', False) is True
+    assert config._safe_bool('True', False) is True
+    assert config._safe_bool('1', False) is True
+    assert config._safe_bool('yes', False) is True
+    assert config._safe_bool(1, False) is True
+
+
+def test_safe_bool_false_values():
+    """_safe_bool correctly identifies falsy values"""
+    import config
+    assert config._safe_bool(False, True) is False
+    assert config._safe_bool('false', True) is False
+    assert config._safe_bool('0', True) is False
+    assert config._safe_bool('no', True) is False
+    assert config._safe_bool(0, True) is False
+
+
+def test_safe_bool_default():
+    """_safe_bool returns default on unrecognized values"""
+    import config
+    assert config._safe_bool(None, False) is False
+    assert config._safe_bool(None, True) is True
+    assert config._safe_bool('', False) is False
+
+
+def test_respond_to_bots_default():
+    """RESPOND_TO_BOTS defaults to False"""
+    import config
+    cfg = config.load_config()
+    assert cfg['RESPOND_TO_BOTS'] is False
+
+
 def test_is_configured_false():
     """is_configured returns falsy when required fields are missing"""
     import config

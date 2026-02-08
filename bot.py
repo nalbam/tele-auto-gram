@@ -428,6 +428,8 @@ async def _handle_new_message(cl: TelegramClient, event: Any) -> None:
         logger.warning("Could not resolve sender for event, skipping")
         return
 
+    is_bot = isinstance(sender, User) and bool(sender.bot)
+
     if isinstance(sender, User):
         sender_name = sender.first_name or ''
         if sender.last_name:
@@ -466,6 +468,11 @@ async def _handle_new_message(cl: TelegramClient, event: Any) -> None:
         await asyncio.to_thread(storage.mark_history_synced, sender.id)
 
     # --- Phase B: Cancel previous + create new response task ---
+
+    # Skip auto-response for bot accounts unless configured to respond
+    if is_bot and not config._safe_bool(msg_cfg.get('RESPOND_TO_BOTS'), False):
+        logger.debug("Skipping auto-response for bot account %s", sender_name)
+        return
 
     sender_id = sender.id
 

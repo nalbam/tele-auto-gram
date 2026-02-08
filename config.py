@@ -21,6 +21,20 @@ def _safe_int(value: Any, default: int) -> int:
         return default
 
 
+def _safe_bool(value: Any, default: bool) -> bool:
+    """Safely convert value to bool, returning default on failure.
+
+    Accepts: True/False (bool), 'true'/'false'/'1'/'0' (str), 1/0 (int).
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in ('true', '1', 'yes')
+    return default
+
+
 def ensure_data_dir() -> None:
     """Ensure data directory exists"""
     os.makedirs('data', exist_ok=True)
@@ -61,6 +75,7 @@ def load_config() -> dict[str, Any]:
         'RESPONSE_DELAY_MAX': _safe_int(os.getenv('RESPONSE_DELAY_MAX'), 10),
         'READ_RECEIPT_DELAY_MIN': _safe_int(os.getenv('READ_RECEIPT_DELAY_MIN'), 3),
         'READ_RECEIPT_DELAY_MAX': _safe_int(os.getenv('READ_RECEIPT_DELAY_MAX'), 10),
+        'RESPOND_TO_BOTS': _safe_bool(os.getenv('RESPOND_TO_BOTS'), False),
     }
 
     # Load from config file if exists

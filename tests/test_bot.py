@@ -17,15 +17,16 @@ def reset_pending_responses():
     bot._pending_responses.clear()
 
 
-def _make_event(sender_id=123, message_text='hello'):
+def _make_event(sender_id=123, message_text='hello', is_bot=False):
     """Create a mock Telethon NewMessage event"""
     event = AsyncMock()
     event.is_private = True
 
-    sender = MagicMock()
+    sender = MagicMock(spec=User)
     sender.id = sender_id
     sender.first_name = 'Test'
     sender.last_name = 'User'
+    sender.bot = is_bot
     event.get_sender = AsyncMock(return_value=sender)
 
     event.message = MagicMock()
@@ -1017,6 +1018,110 @@ class TestShieldedSend:
 
         # Sync fallback should have stored the message
         mock_add.assert_called_with('sent', 'Me', 'AI reply', sender_id=123)
+
+
+class TestBotAccountHandling:
+    """Tests for bot account detection and RESPOND_TO_BOTS config"""
+
+    def _mock_to_thread(self, respond_to_bots=False):
+        """Create mock for asyncio.to_thread with configurable RESPOND_TO_BOTS"""
+        async def side_effect(func, *args, **kwargs):
+            name = func.__name__ if hasattr(func, '__name__') else ''
+            if func is config.load_config:
+                return {
+                    'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
+                    'RESPONSE_DELAY_MAX': '0', 'READ_RECEIPT_DELAY_MIN': '0',
+                    'READ_RECEIPT_DELAY_MAX': '0',
+                    'RESPOND_TO_BOTS': respond_to_bots,
+                }
+            elif func is storage.is_history_synced:
+                return True
+            elif func is storage.get_messages_by_sender:
+                return [{'direction': 'received', 'text': 'hello'}]
+            elif func is storage.load_sender_profile:
+                return ''
+            elif func is config.load_identity:
+                return 'Be friendly'
+            return None
+        return side_effect
+
+    @pytest.mark.asyncio
+    async def test_bot_message_stored_but_no_response(self):
+        """Bot messages are stored but auto-response is skipped by default"""
+        cl = _make_client()
+        event = _make_event(sender_id=999, message_text='I am a bot', is_bot=True)
+
+        stored_calls = []
+        side_effect = self._mock_to_thread(respond_to_bots=False)
+
+        async def track_to_thread(func, *args, **kwargs):
+            name = func.__name__ if hasattr(func, '__name__') else ''
+            if name == 'add_message':
+                stored_calls.append(args)
+            return await side_effect(func, *args, **kwargs)
+
+        with patch('bot.asyncio.to_thread', side_effect=track_to_thread), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock):
+            await bot._handle_new_message(cl, event)
+
+        # Message should be stored (Phase A)
+        assert len(stored_calls) == 1
+        assert stored_calls[0][0] == 'received'
+        # No response should be sent (Phase B skipped)
+        event.respond.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_bot_message_responded_when_enabled(self):
+        """Bot messages get auto-response when RESPOND_TO_BOTS is true"""
+        cl = _make_client()
+        event = _make_event(sender_id=999, message_text='I am a bot', is_bot=True)
+
+        with patch('bot.asyncio.to_thread', side_effect=self._mock_to_thread(respond_to_bots=True)), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Hello bot!'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot.ai, 'is_trivial_message', return_value=True):
+            await bot._handle_new_message(cl, event)
+
+        # Response SHOULD be sent
+        event.respond.assert_called_once_with('Hello bot!')
+
+    @pytest.mark.asyncio
+    async def test_human_message_unaffected_by_bot_setting(self):
+        """Human messages always get auto-response regardless of RESPOND_TO_BOTS"""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='Hello', is_bot=False)
+
+        with patch('bot.asyncio.to_thread', side_effect=self._mock_to_thread(respond_to_bots=False)), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Hi!'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot.ai, 'is_trivial_message', return_value=True):
+            await bot._handle_new_message(cl, event)
+
+        # Human user always gets a response
+        event.respond.assert_called_once_with('Hi!')
+
+    @pytest.mark.asyncio
+    async def test_bot_read_receipt_still_sent(self):
+        """Read receipt is still sent for bot messages even when response is skipped"""
+        cl = _make_client()
+        event = _make_event(sender_id=999, message_text='Bot msg', is_bot=True)
+
+        receipt_created = []
+
+        original_create_task = asyncio.create_task
+
+        def track_create_task(coro, **kwargs):
+            task = original_create_task(coro, **kwargs)
+            receipt_created.append(True)
+            return task
+
+        with patch('bot.asyncio.to_thread', side_effect=self._mock_to_thread(respond_to_bots=False)), \
+             patch('bot.asyncio.create_task', side_effect=track_create_task), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock):
+            await bot._handle_new_message(cl, event)
+
+        # Read receipt task should have been created
+        assert len(receipt_created) >= 1
 
 
 class TestSyncMarkerOrder:

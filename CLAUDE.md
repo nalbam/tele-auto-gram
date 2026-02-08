@@ -26,7 +26,7 @@ watchmedo auto-restart --patterns="*.py;*.html" --recursive -- python main.py
 # Docker
 docker-compose up -d
 
-# Tests (165 tests across 6 files)
+# Tests (173 tests across 6 files)
 python -m pytest tests/ -v
 ```
 
@@ -58,16 +58,17 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ```
 Phase A — Non-cancellable (always completes):
   1. Private message filter — ignore non-private, early return if text is empty (media-only)
-  2. Resolve sender name from Telegram User object
+  2. Resolve sender name from Telegram User object; detect bot via User.bot
   3. Load config (single read)
   4. Store received message immediately (non-fatal: continues on failure)
   5. Send read receipt (fire & forget via _delayed_read_receipt with configurable delay)
   6. If not yet synced → fetch Telegram history → import → build initial sender profile
      └─ Sync marker: data/messages/{sender_id}.synced
+  7. Bot gate: if sender is bot AND RESPOND_TO_BOTS is false → return (skip Phase B)
 
 Phase B — Cancellable (debounce):
-  7. Cancel any pending response task for this sender (_pending_responses dict)
-  8. Create new asyncio.Task (_respond_to_sender):
+  8. Cancel any pending response task for this sender (_pending_responses dict)
+  9. Create new asyncio.Task (_respond_to_sender):
      a. Load fresh messages + sender profile + identity prompt
      b. Build multi-turn chat context (up to 20 recent messages → OpenAI messages array)
         └─ ai.build_chat_messages: received→user, sent→assistant, consecutive same-role merged
@@ -104,7 +105,7 @@ I/O budget per message: config read 2x (Phase A + Phase B), storage read 3x (mes
 ## Configuration
 
 Required env vars (or set via web UI): `API_ID`, `API_HASH`, `PHONE` (with country code like +82).
-Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESPONSE_DELAY_MIN`, `RESPONSE_DELAY_MAX`, `READ_RECEIPT_DELAY_MIN`, `READ_RECEIPT_DELAY_MAX`, `LOG_LEVEL`, `HOST`, `PORT`, `WEB_TOKEN`, `SECRET_KEY`.
+Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESPONSE_DELAY_MIN`, `RESPONSE_DELAY_MAX`, `READ_RECEIPT_DELAY_MIN`, `READ_RECEIPT_DELAY_MAX`, `RESPOND_TO_BOTS` (default: false), `LOG_LEVEL`, `HOST`, `PORT`, `WEB_TOKEN`, `SECRET_KEY`.
 
 AI identity/persona is defined in `data/IDENTITY.md` (auto-created with defaults if missing, editable via web UI).
 
