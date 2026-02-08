@@ -27,7 +27,7 @@ There are no tests, linter, or type checker configured in this project.
 main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ├── web.py       # Flask REST API (config, auth, messages endpoints)
 ├── bot.py       # Telethon client: web-based auth flow, listens for private messages
-├── config.py    # Config from .env then data/config.json (file overrides env)
+├── config.py    # Config from .env → .env.local (override) → data/config.json (file overrides env)
 ├── storage.py   # JSON-based message store (data/messages.json, auto-prunes >7 days)
 ├── ai.py        # OpenAI-based conversation summarization + response generation
 └── templates/
@@ -52,7 +52,7 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 Required env vars (or set via web UI): `API_ID`, `API_HASH`, `PHONE` (with country code like +82).
 Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `SYSTEM_PROMPT`, `LOG_LEVEL`.
 
-Config priority: `data/config.json` > environment variables (file config overrides env vars).
+Config priority: `data/config.json` > `.env.local` > `.env` > environment variables. File config has highest priority; `.env.local` overrides `.env`.
 
 ## Data Storage
 

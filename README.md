@@ -15,7 +15,7 @@ Telethon 기반 텔레그램 자동 응답 봇입니다. 웹 UI를 통해 설정
 
 ### 사전 요구사항
 
-- Python 3.7 이상 또는 Docker
+- Python 3.8 이상 또는 Docker
 - 텔레그램 계정
 - API ID와 API Hash ([my.telegram.org](https://my.telegram.org)에서 발급)
 
@@ -85,7 +85,7 @@ python main.py
 
 ### 환경 변수를 통한 설정 (선택사항)
 
-`.env` 파일을 생성하여 설정할 수도 있습니다:
+`.env` 파일을 생성하여 설정할 수도 있습니다. 로컬 개발 시에는 `.env.local` 파일로 `.env` 값을 덮어쓸 수 있습니다 (`.env.local`은 `.gitignore`에 포함되어 있어 커밋되지 않습니다):
 
 ```conf
 API_ID=your_api_id

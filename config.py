@@ -2,7 +2,8 @@ import os
 import json
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv('.env')
+load_dotenv('.env.local', override=True)
 
 CONFIG_FILE = 'data/config.json'
 
