@@ -1,11 +1,29 @@
+import os
+import secrets
+
 from flask import Flask, render_template, request, jsonify
 import config
 import storage
 import bot
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', secrets.token_hex(32))
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1 MB
 
 MASKED_FIELDS = ('API_HASH', 'OPENAI_API_KEY')
+WEB_TOKEN = os.getenv('WEB_TOKEN', '')
+
+
+@app.before_request
+def check_auth_token():
+    """Require token authentication for API endpoints when WEB_TOKEN is set"""
+    if not WEB_TOKEN:
+        return
+    if not request.path.startswith('/api/'):
+        return
+    token = request.headers.get('Authorization', '').removeprefix('Bearer ').strip()
+    if token != WEB_TOKEN:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
 
 
 def mask_value(value):
@@ -39,7 +57,7 @@ def is_masked(value):
 @app.route('/')
 def index():
     """Serve the main UI page"""
-    return render_template('index.html')
+    return render_template('index.html', web_token=WEB_TOKEN)
 
 @app.route('/api/config', methods=['GET'])
 def get_config():
@@ -58,6 +76,16 @@ def save_config():
     """Save configuration"""
     try:
         data = request.get_json()
+        if not isinstance(data, dict):
+            return jsonify({'status': 'error', 'message': 'Invalid JSON payload'}), 400
+
+        # Validate API_ID is numeric if provided
+        api_id = data.get('API_ID', '')
+        if api_id and str(api_id).strip():
+            try:
+                int(str(api_id).strip())
+            except (TypeError, ValueError):
+                return jsonify({'status': 'error', 'message': 'API_ID must be a number'}), 400
 
         # Preserve existing values when masked value is submitted unchanged
         existing = config.load_config()
@@ -88,6 +116,9 @@ def send_message():
 
     if not user_id or not text:
         return jsonify({'status': 'error', 'message': 'user_id and text are required'}), 400
+
+    if len(text) > 4096:
+        return jsonify({'status': 'error', 'message': 'Message too long (max 4096 characters)'}), 400
 
     if bot.auth_state.get('status') != 'authorized':
         return jsonify({'status': 'error', 'message': 'Bot is not authorized'}), 400
@@ -122,6 +153,8 @@ def save_identity():
     try:
         data = request.get_json()
         content = data.get('content', '')
+        if len(content) > 50000:
+            return jsonify({'status': 'error', 'message': 'Content too long (max 50000 characters)'}), 400
         config.save_identity(content)
         return jsonify({'status': 'success'})
     except Exception as e:
@@ -156,9 +189,11 @@ def submit_auth_password():
     bot.submit_auth_password(password)
     return jsonify({'status': 'success'})
 
-def run_web_ui(host='127.0.0.1', port=5000):
+def run_web_ui(host=None, port=None):
     """Run the web UI server"""
-    print(f"\n🌐 Web UI is running at http://{host}:{port}")
+    host = host or os.getenv('HOST', '0.0.0.0')
+    port = port or int(os.getenv('PORT', '5000'))
+    print(f"\n Web UI is running at http://{host}:{port}")
     print("Open this URL in your browser to configure and monitor the bot\n")
     app.run(host=host, port=port, debug=False)
 

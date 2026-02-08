@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 from dotenv import load_dotenv
@@ -5,7 +6,18 @@ from dotenv import load_dotenv
 load_dotenv('.env')
 load_dotenv('.env.local', override=True)
 
+logger = logging.getLogger(__name__)
+
 CONFIG_FILE = 'data/config.json'
+
+
+def _safe_int(value, default):
+    """Safely convert value to int, returning default on failure"""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
 
 def ensure_data_dir():
     """Ensure data directory exists"""
@@ -14,7 +26,7 @@ def ensure_data_dir():
 def load_config():
     """Load configuration from file or environment"""
     ensure_data_dir()
-    
+
     config = {
         'API_ID': os.getenv('API_ID'),
         'API_HASH': os.getenv('API_HASH'),
@@ -22,16 +34,19 @@ def load_config():
         'AUTO_RESPONSE_MESSAGE': os.getenv('AUTO_RESPONSE_MESSAGE', 'I will get back to you shortly. Please wait a moment.'),
         'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
         'OPENAI_MODEL': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
-        'RESPONSE_DELAY_MIN': int(os.getenv('RESPONSE_DELAY_MIN', '3')),
-        'RESPONSE_DELAY_MAX': int(os.getenv('RESPONSE_DELAY_MAX', '10')),
+        'RESPONSE_DELAY_MIN': _safe_int(os.getenv('RESPONSE_DELAY_MIN'), 3),
+        'RESPONSE_DELAY_MAX': _safe_int(os.getenv('RESPONSE_DELAY_MAX'), 10),
     }
-    
+
     # Load from config file if exists
     if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            file_config = json.load(f)
-            config.update(file_config)
-    
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                file_config = json.load(f)
+                config.update(file_config)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.error('Failed to load config file: %s', e)
+
     return config
 
 def save_config(config):

@@ -1,16 +1,30 @@
 import logging
-from openai import OpenAI
-import config
+from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
+# Singleton client: reuse across calls, recreate only if api_key changes
+_client = None
+_client_api_key = None
 
-def summarize_conversation(messages, sender_name):
+
+def _get_client(api_key):
+    """Get or create AsyncOpenAI client (reuses if api_key unchanged)"""
+    global _client, _client_api_key
+    if _client is None or _client_api_key != api_key:
+        _client = AsyncOpenAI(api_key=api_key)
+        _client_api_key = api_key
+    return _client
+
+
+async def summarize_conversation(messages, sender_name, api_key='', model='gpt-4o-mini'):
     """Summarize recent conversation with a sender using OpenAI
 
     Args:
         messages: List of message dicts with 'direction', 'text', 'sender' keys
         sender_name: Name of the conversation partner
+        api_key: OpenAI API key
+        model: OpenAI model name
 
     Returns:
         Summary string, or empty string if no messages or on failure
@@ -18,12 +32,8 @@ def summarize_conversation(messages, sender_name):
     if not messages:
         return ''
 
-    cfg = config.load_config()
-    api_key = cfg.get('OPENAI_API_KEY', '')
     if not api_key:
         return ''
-
-    model = cfg.get('OPENAI_MODEL', 'gpt-4o-mini')
 
     conversation_text = '\n'.join(
         f"{'Me' if msg['direction'] == 'sent' else sender_name}: {msg['text']}"
@@ -31,8 +41,8 @@ def summarize_conversation(messages, sender_name):
     )
 
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
+        client = _get_client(api_key)
+        response = await client.chat.completions.create(
             model=model,
             messages=[
                 {
@@ -56,8 +66,9 @@ def summarize_conversation(messages, sender_name):
         return ''
 
 
-def generate_response(system_prompt, conversation_summary, sender_name,
-                      incoming_message, sender_profile=''):
+async def generate_response(system_prompt, conversation_summary, sender_name,
+                            incoming_message, sender_profile='',
+                            api_key='', model='gpt-4o-mini'):
     """Generate an AI response based on context
 
     Args:
@@ -66,16 +77,14 @@ def generate_response(system_prompt, conversation_summary, sender_name,
         sender_name: Name of the message sender
         incoming_message: The incoming message to respond to
         sender_profile: Markdown profile of the sender (preferences, key facts)
+        api_key: OpenAI API key
+        model: OpenAI model name
 
     Returns:
         Generated response string, or None on failure
     """
-    cfg = config.load_config()
-    api_key = cfg.get('OPENAI_API_KEY', '')
     if not api_key:
         return None
-
-    model = cfg.get('OPENAI_MODEL', 'gpt-4o-mini')
 
     system_parts = []
     if system_prompt:
@@ -94,8 +103,8 @@ def generate_response(system_prompt, conversation_summary, sender_name,
     )
 
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
+        client = _get_client(api_key)
+        response = await client.chat.completions.create(
             model=model,
             messages=[
                 {'role': 'system', 'content': system_message},
@@ -110,13 +119,16 @@ def generate_response(system_prompt, conversation_summary, sender_name,
         return None
 
 
-def update_sender_profile(current_profile, recent_messages, sender_name):
+async def update_sender_profile(current_profile, recent_messages, sender_name,
+                                api_key='', model='gpt-4o-mini'):
     """Update sender profile by extracting key info from recent conversation.
 
     Args:
         current_profile: Existing profile markdown (may be empty)
         recent_messages: Recent message dicts
         sender_name: Name of the sender
+        api_key: OpenAI API key
+        model: OpenAI model name
 
     Returns:
         Updated profile markdown string, or current_profile on failure
@@ -124,12 +136,8 @@ def update_sender_profile(current_profile, recent_messages, sender_name):
     if not recent_messages:
         return current_profile
 
-    cfg = config.load_config()
-    api_key = cfg.get('OPENAI_API_KEY', '')
     if not api_key:
         return current_profile
-
-    model = cfg.get('OPENAI_MODEL', 'gpt-4o-mini')
 
     conversation_text = '\n'.join(
         f"{'Me' if msg['direction'] == 'sent' else sender_name}: {msg['text']}"
@@ -168,8 +176,8 @@ def update_sender_profile(current_profile, recent_messages, sender_name):
     ]
 
     try:
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
+        client = _get_client(api_key)
+        response = await client.chat.completions.create(
             model=model,
             messages=[
                 {'role': 'system', 'content': '\n'.join(prompt_parts)},

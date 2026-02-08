@@ -31,17 +31,17 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ├── web.py       # Flask REST API (config, auth, messages endpoints)
 ├── bot.py       # Telethon client: web-based auth flow, listens for private messages, sends manual replies
 ├── config.py    # Config from .env → .env.local (override) → data/config.json (file overrides env)
-├── storage.py   # JSON-based message store (data/messages/{sender_id}.json, auto-prunes >7 days)
-├── ai.py        # OpenAI-based conversation summarization + response generation
+├── storage.py   # JSON-based message store with file locking (data/messages/{sender_id}.json, auto-prunes >7 days)
+├── ai.py        # AsyncOpenAI-based conversation summarization + response generation (singleton client)
 └── templates/
     └── index.html  # SPA web UI (vanilla JS, Tailwind-style CSS)
 ```
 
-**Startup flow**: `main.py` → Flask server starts on `127.0.0.1:5000` → 2s delay → bot starts in daemon thread (only if configured).
+**Startup flow**: `main.py` → signal handlers registered (SIGTERM/SIGINT) → Flask server starts on `0.0.0.0:5000` → 2s delay → bot starts in daemon thread (only if configured).
 
 **Auth flow**: `bot.py:start_bot` → `connect()` → `is_user_authorized()` → if not, `send_code_request()` → wait for code via web UI → `sign_in()` → optional 2FA password.
 
-**Message flow**: Telegram message → `bot.py:handle_new_message` → store received message (with `sender_id`) → load sender profile (`{sender_id}.md`) → generate AI response (with profile + conversation context) → random delay → send auto-response → store sent message → update sender profile with new info.
+**Message flow**: Telegram message → `bot.py:handle_new_message` → reload config → store received message via `asyncio.to_thread` → load sender profile → generate AI response (async, with profile + conversation context) → random delay (with min/max swap validation) → send auto-response → store sent message → update sender profile with new info.
 
 **Manual reply flow**: Web UI → `POST /api/messages/send` → `bot.send_message_to_user()` (uses `asyncio.run_coroutine_threadsafe` to bridge Flask thread → bot asyncio loop) → Telethon `client.send_message()` → store sent message.
 
@@ -56,7 +56,7 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ## Configuration
 
 Required env vars (or set via web UI): `API_ID`, `API_HASH`, `PHONE` (with country code like +82).
-Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESPONSE_DELAY_MIN`, `RESPONSE_DELAY_MAX`, `LOG_LEVEL`.
+Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESPONSE_DELAY_MIN`, `RESPONSE_DELAY_MAX`, `LOG_LEVEL`, `HOST`, `WEB_TOKEN`, `SECRET_KEY`.
 
 AI identity/persona is defined in `data/IDENTITY.md` (auto-created with defaults if missing, editable via web UI).
 

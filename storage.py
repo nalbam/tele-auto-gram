@@ -1,10 +1,26 @@
 import json
 import os
+import threading
 from datetime import datetime, timedelta
 
 MESSAGES_DIR = 'data/messages'
 LEGACY_MESSAGES_FILE = 'data/messages.json'
 FALLBACK_SENDER_ID = '_unknown'
+
+# Per-sender file locks to prevent race conditions
+_locks = {}
+_locks_lock = threading.Lock()
+
+# Migration flag to avoid repeated legacy migration checks
+_migration_done = False
+
+
+def _get_lock(sender_id):
+    """Get or create a lock for a sender_id"""
+    with _locks_lock:
+        if sender_id not in _locks:
+            _locks[sender_id] = threading.Lock()
+        return _locks[sender_id]
 
 
 def ensure_messages_dir():
@@ -53,7 +69,12 @@ def _save_sender_messages(sender_id, messages):
 
 
 def _migrate_legacy_messages():
-    """Migrate legacy messages.json to per-sender files"""
+    """Migrate legacy messages.json to per-sender files (runs once)"""
+    global _migration_done
+    if _migration_done:
+        return
+    _migration_done = True
+
     if not os.path.exists(LEGACY_MESSAGES_FILE):
         return
 
@@ -130,7 +151,9 @@ def get_messages_by_sender(sender_id, limit=20):
     _migrate_legacy_messages()
     ensure_messages_dir()
 
-    messages = _load_sender_messages(str(sender_id))
+    sid = str(sender_id)
+    with _get_lock(sid):
+        messages = _load_sender_messages(sid)
     return messages[-limit:]
 
 
@@ -142,19 +165,23 @@ def _sender_profile_path(sender_id):
 def load_sender_profile(sender_id):
     """Load sender profile markdown. Returns empty string if not exists."""
     ensure_messages_dir()
-    filepath = _sender_profile_path(str(sender_id))
-    if not os.path.exists(filepath):
-        return ''
-    with open(filepath, 'r', encoding='utf-8') as f:
-        return f.read()
+    sid = str(sender_id)
+    with _get_lock(sid):
+        filepath = _sender_profile_path(sid)
+        if not os.path.exists(filepath):
+            return ''
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
 
 
 def save_sender_profile(sender_id, content):
     """Save sender profile markdown."""
     ensure_messages_dir()
-    filepath = _sender_profile_path(str(sender_id))
-    with open(filepath, 'w', encoding='utf-8') as f:
-        f.write(content)
+    sid = str(sender_id)
+    with _get_lock(sid):
+        filepath = _sender_profile_path(sid)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
 
 
 def add_message(direction, sender, text, summary=None, sender_id=None):
@@ -181,8 +208,9 @@ def add_message(direction, sender, text, summary=None, sender_id=None):
         message['sender_id'] = sender_id
 
     sid = str(sender_id) if sender_id is not None else FALLBACK_SENDER_ID
-    messages = _load_sender_messages(sid)
-    messages.append(message)
-    _save_sender_messages(sid, messages)
+    with _get_lock(sid):
+        messages = _load_sender_messages(sid)
+        messages.append(message)
+        _save_sender_messages(sid, messages)
 
     return message

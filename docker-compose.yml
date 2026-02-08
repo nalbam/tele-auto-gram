@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   tele-auto-gram:
     image: ghcr.io/nalbam/tele-auto-gram:latest
@@ -17,3 +15,4 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - WEB_TOKEN=${WEB_TOKEN:-}

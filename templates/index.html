@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="web-token" content="{{ web_token }}">
     <title>TeleAutoGram</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -439,6 +440,17 @@
     </div>
 
     <script>
+        // === Auth Token ===
+        const WEB_TOKEN = document.querySelector('meta[name="web-token"]')?.content || '';
+        function authFetch(url, options = {}) {
+            if (WEB_TOKEN) {
+                options.headers = Object.assign({}, options.headers, {
+                    'Authorization': 'Bearer ' + WEB_TOKEN
+                });
+            }
+            return fetch(url, options);
+        }
+
         // === State ===
         let allMessages = [];
         let conversations = [];
@@ -533,7 +545,7 @@
         // === Config ===
         async function loadConfig() {
             try {
-                const response = await fetch('/api/config');
+                const response = await authFetch('/api/config');
                 const data = await response.json();
                 if (data.API_ID) document.getElementById('api_id').value = data.API_ID;
                 if (data.API_HASH) document.getElementById('api_hash').value = data.API_HASH;
@@ -573,7 +585,7 @@
                 RESPONSE_DELAY_MAX: parseInt(fd.get('response_delay_max')) || 10
             };
             try {
-                const r = await fetch('/api/config', {
+                const r = await authFetch('/api/config', {
                     method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg)
                 });
                 if (r.ok) { showAlert('Settings saved', 'success'); loadConfig(); }
@@ -584,7 +596,7 @@
         // === Identity ===
         async function loadIdentity() {
             try {
-                const r = await fetch('/api/identity');
+                const r = await authFetch('/api/identity');
                 const data = await r.json();
                 document.getElementById('identity_content').value = data.content || '';
             } catch (err) { console.error('Error loading identity:', err); }
@@ -592,7 +604,7 @@
         async function saveIdentity() {
             const content = document.getElementById('identity_content').value;
             try {
-                const r = await fetch('/api/identity', {
+                const r = await authFetch('/api/identity', {
                     method: 'POST', headers: {'Content-Type':'application/json'},
                     body: JSON.stringify({ content })
                 });
@@ -604,7 +616,7 @@
         // === Messages & Conversations ===
         async function loadMessages() {
             try {
-                const r = await fetch('/api/messages');
+                const r = await authFetch('/api/messages');
                 allMessages = await r.json();
                 conversations = buildConversations(allMessages);
                 updateSidebar();
@@ -661,10 +673,8 @@
                 const initial = getInitial(conv.sender_name);
                 const color = getAvatarColor(conv.sender_name);
                 const received = conv.messages.filter(m => m.direction === 'received').length;
-                const sid = conv.sender_id || 'null';
-                const sname = escapeHtml(conv.sender_name).replace(/'/g, "\\'");
                 return `
-                    <div class="conv-card" onclick="enterChatRoom(${sid},'${sname}')">
+                    <div class="conv-card" data-sender-id="${conv.sender_id || ''}" data-sender-name="${escapeHtml(conv.sender_name)}">
                         <div class="conv-avatar" style="background:${color}">${initial}</div>
                         <div class="conv-info">
                             <div class="conv-top-row">
@@ -678,6 +688,12 @@
                         </div>
                     </div>`;
             }).join('');
+            container.querySelectorAll('.conv-card[data-sender-id]').forEach(el => {
+                el.addEventListener('click', () => {
+                    const sid = el.dataset.senderId;
+                    if (sid) enterChatRoom(Number(sid), el.dataset.senderName);
+                });
+            });
         }
 
         // === Chat Room ===
@@ -740,7 +756,7 @@
             const btn = document.getElementById('chat-send-btn');
             btn.disabled = true;
             try {
-                const r = await fetch('/api/messages/send', {
+                const r = await authFetch('/api/messages/send', {
                     method: 'POST', headers: {'Content-Type':'application/json'},
                     body: JSON.stringify({ user_id: selectedConversation.sender_id, text })
                 });
@@ -770,11 +786,9 @@
                     const preview = truncate(last.text, 25);
                     const initial = getInitial(conv.sender_name);
                     const color = getAvatarColor(conv.sender_name);
-                    const sid = conv.sender_id || 'null';
-                    const sname = escapeHtml(conv.sender_name).replace(/'/g, "\\'");
                     return `
                         <div class="sidebar-conv-item${active ? ' active' : ''}"
-                             onclick="enterChatRoom(${sid},'${sname}')">
+                             data-sender-id="${conv.sender_id || ''}" data-sender-name="${escapeHtml(conv.sender_name)}">
                             <div class="sidebar-conv-avatar" style="background:${color}">${initial}</div>
                             <div class="sidebar-conv-info">
                                 <div class="sidebar-conv-name">${escapeHtml(conv.sender_name)}</div>
@@ -782,6 +796,12 @@
                             </div>
                         </div>`;
                 }).join('')}`;
+            container.querySelectorAll('.sidebar-conv-item[data-sender-id]').forEach(el => {
+                el.addEventListener('click', () => {
+                    const sid = el.dataset.senderId;
+                    if (sid) enterChatRoom(Number(sid), el.dataset.senderName);
+                });
+            });
         }
 
         // === Auth ===
@@ -793,7 +813,7 @@
 
         async function loadAuthStatus() {
             try {
-                const r = await fetch('/api/auth/status');
+                const r = await authFetch('/api/auth/status');
                 const data = await r.json();
                 if (data.status === _lastAuthStatus && data.error === _lastAuthError) return;
                 _lastAuthStatus = data.status; _lastAuthError = data.error;
@@ -831,7 +851,7 @@
             const code = document.getElementById('auth_code').value.trim();
             if (!code) return;
             try {
-                const r = await fetch('/api/auth/code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code}) });
+                const r = await authFetch('/api/auth/code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code}) });
                 if (r.ok) { showAlert('Verification code submitted','success'); setTimeout(loadAuthStatus,1500); }
                 else { const d = await r.json(); showAlert(d.message||'Failed to submit code','error'); }
             } catch(err) { showAlert('Error submitting code','error'); }
@@ -841,7 +861,7 @@
             const password = document.getElementById('auth_password').value;
             if (!password) return;
             try {
-                const r = await fetch('/api/auth/password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password}) });
+                const r = await authFetch('/api/auth/password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password}) });
                 if (r.ok) { showAlert('Password submitted','success'); setTimeout(loadAuthStatus,1500); }
                 else { const d = await r.json(); showAlert(d.message||'Failed to submit password','error'); }
             } catch(err) { showAlert('Error submitting password','error'); }

@@ -102,7 +102,11 @@ async def start_bot():
         logger.info("Bot is not configured. Please configure through the web UI.")
         return
 
-    api_id = int(cfg['API_ID'])
+    try:
+        api_id = int(cfg['API_ID'])
+    except (TypeError, ValueError):
+        logger.error("Invalid API_ID: %s", cfg.get('API_ID'))
+        return
     api_hash = cfg['API_HASH']
     phone = cfg['PHONE']
 
@@ -128,62 +132,86 @@ async def start_bot():
 
         message_text = event.message.message
 
+        # Reload config for each message to pick up changes
+        msg_cfg = await asyncio.to_thread(config.load_config)
+
         # Store received message
-        storage.add_message('received', sender_name, message_text, sender_id=sender.id)
+        await asyncio.to_thread(
+            storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
+        )
 
         # Generate response
         response_message = None
         summary = None
-        openai_key = cfg.get('OPENAI_API_KEY', '')
+        openai_key = msg_cfg.get('OPENAI_API_KEY', '')
+        openai_model = msg_cfg.get('OPENAI_MODEL', 'gpt-4o-mini')
 
         if openai_key:
             try:
                 # Get recent conversation and sender profile
-                recent_messages = storage.get_messages_by_sender(sender.id)
-                sender_profile = storage.load_sender_profile(sender.id)
+                recent_messages = await asyncio.to_thread(
+                    storage.get_messages_by_sender, sender.id
+                )
+                sender_profile = await asyncio.to_thread(
+                    storage.load_sender_profile, sender.id
+                )
 
                 # Summarize conversation context
-                conversation_summary = ai.summarize_conversation(
-                    recent_messages, sender_name
+                conversation_summary = await ai.summarize_conversation(
+                    recent_messages, sender_name,
+                    api_key=openai_key, model=openai_model
                 )
                 summary = conversation_summary
 
                 # Generate AI response with profile context
-                system_prompt = config.load_identity()
-                response_message = ai.generate_response(
+                system_prompt = await asyncio.to_thread(config.load_identity)
+                response_message = await ai.generate_response(
                     system_prompt, conversation_summary,
                     sender_name, message_text,
-                    sender_profile=sender_profile
+                    sender_profile=sender_profile,
+                    api_key=openai_key, model=openai_model
                 )
             except Exception as e:
                 logger.error("AI response generation failed: %s", e)
 
         # Fallback to static message
         if not response_message:
-            response_message = cfg.get(
+            response_message = msg_cfg.get(
                 'AUTO_RESPONSE_MESSAGE',
                 'I will get back to you shortly. Please wait a moment.'
             )
-        delay_min = float(cfg.get('RESPONSE_DELAY_MIN', 3))
-        delay_max = float(cfg.get('RESPONSE_DELAY_MAX', 10))
+
+        delay_min = float(msg_cfg.get('RESPONSE_DELAY_MIN', 3))
+        delay_max = float(msg_cfg.get('RESPONSE_DELAY_MAX', 10))
+        if delay_min > delay_max:
+            delay_min, delay_max = delay_max, delay_min
         delay = random.uniform(delay_min, delay_max)
         logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
         await asyncio.sleep(delay)
         await event.respond(response_message)
 
         # Store sent response
-        storage.add_message('sent', 'Me', response_message, sender_id=sender.id)
+        await asyncio.to_thread(
+            storage.add_message, 'sent', 'Me', response_message, sender_id=sender.id
+        )
 
         # Update sender profile in background (non-blocking)
         if openai_key:
             try:
-                current_profile = storage.load_sender_profile(sender.id)
-                recent = storage.get_messages_by_sender(sender.id)
-                updated_profile = ai.update_sender_profile(
-                    current_profile, recent, sender_name
+                current_profile = await asyncio.to_thread(
+                    storage.load_sender_profile, sender.id
+                )
+                recent = await asyncio.to_thread(
+                    storage.get_messages_by_sender, sender.id
+                )
+                updated_profile = await ai.update_sender_profile(
+                    current_profile, recent, sender_name,
+                    api_key=openai_key, model=openai_model
                 )
                 if updated_profile != current_profile:
-                    storage.save_sender_profile(sender.id, updated_profile)
+                    await asyncio.to_thread(
+                        storage.save_sender_profile, sender.id, updated_profile
+                    )
                     logger.debug("Updated profile for %s", sender_name)
             except Exception as e:
                 logger.error("Profile update failed for %s: %s", sender_name, e)
