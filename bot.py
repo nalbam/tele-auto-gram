@@ -162,7 +162,9 @@ async def start_bot():
                 'AUTO_RESPONSE_MESSAGE',
                 'I will get back to you shortly. Please wait a moment.'
             )
-        delay = random.uniform(3.0, 10.0)
+        delay_min = float(cfg.get('RESPONSE_DELAY_MIN', 3))
+        delay_max = float(cfg.get('RESPONSE_DELAY_MAX', 10))
+        delay = random.uniform(delay_min, delay_max)
         logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
         await asyncio.sleep(delay)
         await event.respond(response_message)

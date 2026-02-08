@@ -22,6 +22,8 @@ def load_config():
         'AUTO_RESPONSE_MESSAGE': os.getenv('AUTO_RESPONSE_MESSAGE', 'I will get back to you shortly. Please wait a moment.'),
         'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
         'OPENAI_MODEL': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+        'RESPONSE_DELAY_MIN': int(os.getenv('RESPONSE_DELAY_MIN', '3')),
+        'RESPONSE_DELAY_MAX': int(os.getenv('RESPONSE_DELAY_MAX', '10')),
     }
     
     # Load from config file if exists

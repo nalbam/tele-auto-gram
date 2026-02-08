@@ -56,7 +56,7 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ## Configuration
 
 Required env vars (or set via web UI): `API_ID`, `API_HASH`, `PHONE` (with country code like +82).
-Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `LOG_LEVEL`.
+Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESPONSE_DELAY_MIN`, `RESPONSE_DELAY_MAX`, `LOG_LEVEL`.
 
 AI identity/persona is defined in `data/IDENTITY.md` (auto-created with defaults if missing, editable via web UI).
 
