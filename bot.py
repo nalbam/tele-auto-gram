@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 SEND_MESSAGE_TIMEOUT = 10
 DEFAULT_DELAY_MIN = 3.0
 DEFAULT_DELAY_MAX = 10.0
+DEFAULT_READ_RECEIPT_DELAY_MIN = 3.0
+DEFAULT_READ_RECEIPT_DELAY_MAX = 10.0
 HISTORY_FETCH_LIMIT = 50
 _AUTH_INPUT_TIMEOUT = 600
 
@@ -28,6 +30,9 @@ _AUTH_INPUT_TIMEOUT = 600
 client = None
 _bot_loop = None
 _state_lock = threading.Lock()
+
+# Pending response tasks per sender (asyncio-safe, single-threaded access within event loop)
+_pending_responses: dict[int, asyncio.Task] = {}
 
 # Private authentication state
 _auth_state = {
@@ -281,6 +286,89 @@ async def _fetch_telegram_history(cl: TelegramClient, sender_id: int, sender_nam
     return history
 
 
+async def _delayed_read_receipt(cl: TelegramClient, event: Any, msg_cfg: dict[str, Any]) -> None:
+    """Send read receipt with random delay (fire & forget).
+
+    Args:
+        cl: TelegramClient instance
+        event: Telethon NewMessage event
+        msg_cfg: config dict with READ_RECEIPT_DELAY_MIN/MAX
+    """
+    try:
+        rr_min = float(msg_cfg.get('READ_RECEIPT_DELAY_MIN', DEFAULT_READ_RECEIPT_DELAY_MIN))
+    except (TypeError, ValueError):
+        rr_min = DEFAULT_READ_RECEIPT_DELAY_MIN
+    try:
+        rr_max = float(msg_cfg.get('READ_RECEIPT_DELAY_MAX', DEFAULT_READ_RECEIPT_DELAY_MAX))
+    except (TypeError, ValueError):
+        rr_max = DEFAULT_READ_RECEIPT_DELAY_MAX
+    if rr_min > rr_max:
+        rr_min, rr_max = rr_max, rr_min
+    read_delay = random.uniform(rr_min, rr_max)
+    await asyncio.sleep(read_delay)
+    try:
+        await cl.send_read_acknowledge(event.chat_id, event.message)
+    except Exception as e:
+        logger.warning("Failed to send read acknowledge: %s", e)
+
+
+async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sender_name: str) -> None:
+    """Generate and send AI response to a sender (cancellable).
+
+    This coroutine is run as an asyncio.Task and may be cancelled when a new
+    message arrives from the same sender. CancelledError propagates naturally.
+
+    Args:
+        cl: TelegramClient instance
+        event: Telethon NewMessage event (latest message from sender)
+        sender_id: Telegram user ID
+        sender_name: display name of sender
+    """
+    msg_cfg = await asyncio.to_thread(config.load_config)
+
+    # Load fresh data (includes all messages stored so far in Phase A)
+    existing_messages = await asyncio.to_thread(
+        storage.get_messages_by_sender, sender_id
+    )
+    sender_profile = await asyncio.to_thread(storage.load_sender_profile, sender_id)
+    system_prompt = await asyncio.to_thread(config.load_identity)
+
+    response_message = await _generate_response(
+        sender_name, existing_messages, sender_profile, system_prompt, msg_cfg
+    )
+
+    try:
+        delay_min = float(msg_cfg.get('RESPONSE_DELAY_MIN', DEFAULT_DELAY_MIN))
+    except (TypeError, ValueError):
+        delay_min = DEFAULT_DELAY_MIN
+    try:
+        delay_max = float(msg_cfg.get('RESPONSE_DELAY_MAX', DEFAULT_DELAY_MAX))
+    except (TypeError, ValueError):
+        delay_max = DEFAULT_DELAY_MAX
+    if delay_min > delay_max:
+        delay_min, delay_max = delay_max, delay_min
+    delay = random.uniform(delay_min, delay_max)
+    logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
+    await asyncio.sleep(delay)
+
+    await event.respond(response_message)
+
+    await asyncio.to_thread(
+        storage.add_message, 'sent', 'Me', response_message, sender_id=sender_id
+    )
+
+    message_text = event.message.message
+    if not ai.is_trivial_message(message_text):
+        all_messages = existing_messages + [
+            {'direction': 'sent', 'text': response_message},
+        ]
+        await _update_sender_profile(sender_id, sender_name, msg_cfg,
+                                     messages=all_messages, sender_profile=sender_profile)
+
+    logger.debug("Received message from %s: %s", sender_name, message_text)
+    logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
+
+
 async def _authenticate(cl: TelegramClient, phone: str, loop: asyncio.AbstractEventLoop) -> None:
     """Run the full authentication flow (code + optional 2FA password)
 
@@ -365,7 +453,12 @@ async def start_bot() -> None:
 
     @cl.on(events.NewMessage(incoming=True, from_users=None))
     async def handle_new_message(event):
-        """Handle incoming messages"""
+        """Handle incoming messages with debounce for consecutive messages.
+
+        Phase A (non-cancellable): store message, send read receipt, sync history.
+        Phase B (cancellable): cancel any pending response for this sender,
+        then create a new response task that sees all accumulated messages.
+        """
         if not event.is_private:
             return
 
@@ -381,80 +474,49 @@ async def start_bot() -> None:
 
         message_text = event.message.message
 
-        # FIX #1: Early return for empty messages (media-only)
         if not message_text:
             return
 
+        # --- Phase A: Non-cancellable (always complete) ---
+
         msg_cfg = await asyncio.to_thread(config.load_config)
 
-        # FIX #2: Centralized data loading — single storage read
-        existing_messages = await asyncio.to_thread(
-            storage.get_messages_by_sender, sender.id
+        # Store received message immediately
+        await asyncio.to_thread(
+            storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
         )
+
+        # Read receipt (fire & forget)
+        asyncio.create_task(_delayed_read_receipt(cl, event, msg_cfg))
 
         # Fetch Telegram history if not yet synced for this sender
         history_synced = await asyncio.to_thread(storage.is_history_synced, sender.id)
         if not history_synced:
             imported = await _fetch_telegram_history(cl, sender.id, sender_name, event.message.id)
             await asyncio.to_thread(storage.mark_history_synced, sender.id)
-            existing_messages = await asyncio.to_thread(
-                storage.get_messages_by_sender, sender.id
-            )
-            # Build initial profile from raw imported messages (not subject to 7-day prune)
             if imported:
                 await _update_sender_profile(sender.id, sender_name, msg_cfg,
                                              use_all_messages=True, messages=imported)
 
-        sender_profile = await asyncio.to_thread(storage.load_sender_profile, sender.id)
-        system_prompt = await asyncio.to_thread(config.load_identity)
+        # --- Phase B: Cancel previous + create new response task ---
 
-        await asyncio.to_thread(
-            storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
-        )
+        sender_id = sender.id
 
-        # Mark message as read (send read receipt to Telegram)
-        try:
-            await cl.send_read_acknowledge(event.chat_id, event.message)
-        except Exception as e:
-            logger.warning("Failed to send read acknowledge: %s", e)
+        existing_task = _pending_responses.get(sender_id)
+        if existing_task is not None and not existing_task.done():
+            existing_task.cancel()
+            logger.debug("Cancelled pending response for %s (new message arrived)", sender_name)
 
-        # FIX #3: Build messages with current incoming for multi-turn context
-        messages_for_ai = existing_messages + [{'direction': 'received', 'text': message_text}]
-
-        response_message = await _generate_response(
-            sender_name, messages_for_ai, sender_profile, system_prompt, msg_cfg
-        )
+        task = asyncio.create_task(_respond_to_sender(cl, event, sender_id, sender_name))
+        _pending_responses[sender_id] = task
 
         try:
-            delay_min = float(msg_cfg.get('RESPONSE_DELAY_MIN', DEFAULT_DELAY_MIN))
-        except (TypeError, ValueError):
-            delay_min = DEFAULT_DELAY_MIN
-        try:
-            delay_max = float(msg_cfg.get('RESPONSE_DELAY_MAX', DEFAULT_DELAY_MAX))
-        except (TypeError, ValueError):
-            delay_max = DEFAULT_DELAY_MAX
-        if delay_min > delay_max:
-            delay_min, delay_max = delay_max, delay_min
-        delay = random.uniform(delay_min, delay_max)
-        logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
-        await asyncio.sleep(delay)
-        await event.respond(response_message)
-
-        await asyncio.to_thread(
-            storage.add_message, 'sent', 'Me', response_message, sender_id=sender.id
-        )
-
-        # FIX #5: Skip profile update for trivial messages
-        if not ai.is_trivial_message(message_text):
-            all_messages = existing_messages + [
-                {'direction': 'received', 'text': message_text},
-                {'direction': 'sent', 'text': response_message},
-            ]
-            await _update_sender_profile(sender.id, sender_name, msg_cfg,
-                                         messages=all_messages, sender_profile=sender_profile)
-
-        logger.debug("Received message from %s: %s", sender_name, message_text)
-        logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
+            await task
+        except asyncio.CancelledError:
+            pass  # Normal: cancelled by a newer message
+        finally:
+            if _pending_responses.get(sender_id) is task:
+                del _pending_responses[sender_id]
 
     await cl.connect()
     loop = asyncio.get_event_loop()
