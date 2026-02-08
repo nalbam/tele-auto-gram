@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Telegram Auto-Response Bot Main Entry Point
+TeleAutoGram Main Entry Point
 
 This application runs both the Telegram bot and the web UI.
 """
@@ -24,7 +24,7 @@ logging.basicConfig(
 def main():
     """Main entry point"""
     print("=" * 60)
-    print("📱 Telegram Auto-Response Bot")
+    print("📱 TeleAutoGram")
     print("=" * 60)
     
     # Start web UI in a separate thread

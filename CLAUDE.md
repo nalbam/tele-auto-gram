@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Telegram 자동 응답 봇 (Python + Telethon). 웹 UI를 통해 설정을 관리하고, 프라이빗 메시지에 자동으로 응답합니다.
+TeleAutoGram — Telegram 자동 응답 봇 (Python + Telethon). 웹 UI를 통해 설정·인증을 관리하고, 프라이빗 메시지에 자동으로 응답합니다.
 
 ## Commands
 
@@ -25,8 +25,8 @@ There are no tests, linter, or type checker configured in this project.
 
 ```
 main.py          # Entrypoint: starts Flask web server + bot in separate thread
-├── web.py       # Flask REST API (GET/POST /api/config, GET /api/messages)
-├── bot.py       # Telethon client: listens for private messages, auto-responds
+├── web.py       # Flask REST API (config, auth, messages endpoints)
+├── bot.py       # Telethon client: web-based auth flow, listens for private messages
 ├── config.py    # Config from .env then data/config.json (file overrides env)
 ├── storage.py   # JSON-based message store (data/messages.json, auto-prunes >7 days)
 ├── utils.py     # Message summarization + optional external API notification
@@ -56,6 +56,7 @@ Config priority: `data/config.json` > environment variables (file config overrid
 All data lives in `data/` directory (gitignored):
 - `data/config.json` - Saved configuration from web UI
 - `data/messages.json` - Message history (auto-pruned after 7 days)
+- `data/bot_session.session` - Telethon session file (persisted in data/ for Docker volume support)
 - `*.session` / `*.session-journal` - Telethon session files (gitignored, never commit)
 
 ## CI/CD
@@ -65,6 +66,9 @@ GitHub Actions (`docker-build.yml`) builds and pushes Docker images to `ghcr.io/
 ## Web API Endpoints
 
 - `GET /` - Web UI
-- `GET /api/config` - Get current config (returns all fields including secrets)
+- `GET /api/config` - Get current config (sensitive fields masked)
 - `POST /api/config` - Save config to `data/config.json`
 - `GET /api/messages` - Get stored messages
+- `GET /api/auth/status` - Get auth state (`disconnected`|`waiting_code`|`waiting_password`|`authorized`|`error`)
+- `POST /api/auth/code` - Submit Telegram auth code
+- `POST /api/auth/password` - Submit 2FA password
