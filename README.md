@@ -84,7 +84,7 @@ python main.py
 
 `.env` 파일을 생성하여 설정할 수도 있습니다:
 
-```env
+```conf
 API_ID=your_api_id
 API_HASH=your_api_hash
 PHONE=+821012345678
@@ -110,10 +110,13 @@ tele-auto-gram/
 ├── storage.py           # 메시지 저장 관리
 ├── utils.py             # 유틸리티 함수
 ├── requirements.txt     # 의존성 목록
+├── .env.example         # 환경 변수 예제
 ├── Dockerfile           # Docker 이미지 빌드 설정
 ├── docker-compose.yml   # Docker Compose 설정
 ├── templates/
 │   └── index.html      # 웹 UI 템플릿
+├── .github/workflows/
+│   └── docker-build.yml # CI/CD 자동 이미지 빌드
 └── data/               # 데이터 저장 디렉토리 (자동 생성)
     ├── config.json     # 설정 파일
     └── messages.json   # 메시지 기록
@@ -125,10 +128,10 @@ tele-auto-gram/
 
 Docker 이미지는 GitHub Actions를 통해 자동으로 빌드되며 GitHub Container Registry에 게시됩니다:
 
-- `ghcr.io/nalbam/tele-auto-gram:latest` - 최신 버전
-- `ghcr.io/nalbam/tele-auto-gram:v1` - 메이저 버전 1.x.x
-- `ghcr.io/nalbam/tele-auto-gram:v1.0` - 마이너 버전 1.0.x
-- `ghcr.io/nalbam/tele-auto-gram:v1.0.0` - 특정 버전
+- `ghcr.io/nalbam/tele-auto-gram:1` - 메이저 버전 1.x.x
+- `ghcr.io/nalbam/tele-auto-gram:1.0` - 마이너 버전 1.0.x
+- `ghcr.io/nalbam/tele-auto-gram:1.0.0` - 특정 버전
+- `ghcr.io/nalbam/tele-auto-gram:sha-xxxxxxx` - 커밋 SHA
 
 ### 버전 태깅
 

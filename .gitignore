@@ -26,3 +26,11 @@ venv/
 env/
 ENV/
 .venv
+
+# claude
+.claude/
+.context-*.md
+.context.md
+.prompt-*.md
+.prompt.md
+docs/plans/
