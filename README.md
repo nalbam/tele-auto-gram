@@ -100,6 +100,8 @@ PHONE=+821012345678
 AUTO_RESPONSE_MESSAGE=I will get back to you shortly.
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
+RESPONSE_DELAY_MIN=3
+RESPONSE_DELAY_MAX=10
 LOG_LEVEL=INFO
 ```
 
@@ -124,6 +126,7 @@ tele-auto-gram/
 ├── storage.py           # Message storage management
 ├── requirements.txt     # Dependencies
 ├── .env.example         # Environment variable example
+├── CLAUDE.md            # AI coding assistant instructions
 ├── Dockerfile           # Docker image build config
 ├── docker-compose.yml   # Docker Compose config
 ├── templates/
@@ -136,8 +139,9 @@ tele-auto-gram/
     ├── config.json      # Configuration file
     ├── IDENTITY.md      # AI persona/identity prompt
     ├── messages/        # Per-sender message history
-    │   └── {sender_id}.json
-    └── bot_session.session  # Telethon session file
+    │   ├── {sender_id}.json  # Message history (auto-pruned after 7 days)
+    │   └── {sender_id}.md    # Sender profile (auto-updated by AI)
+    └── bot_session.session   # Telethon session file
 ```
 
 ## Docker Images
