@@ -29,25 +29,28 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ├── bot.py       # Telethon client: web-based auth flow, listens for private messages
 ├── config.py    # Config from .env then data/config.json (file overrides env)
 ├── storage.py   # JSON-based message store (data/messages.json, auto-prunes >7 days)
-├── utils.py     # Message summarization + optional external API notification
+├── ai.py        # OpenAI-based conversation summarization + response generation
 └── templates/
     └── index.html  # SPA web UI (vanilla JS, Tailwind-style CSS)
 ```
 
 **Startup flow**: `main.py` → Flask server starts on `127.0.0.1:5000` → 2s delay → bot starts in daemon thread (only if configured).
 
-**Message flow**: Telegram message → `bot.py:handle_new_message` → store received message → send auto-response → store sent message → summarize → optional API notify.
+**Auth flow**: `bot.py:start_bot` → `connect()` → `is_user_authorized()` → if not, `send_code_request()` → wait for code via web UI → `sign_in()` → optional 2FA password.
+
+**Message flow**: Telegram message → `bot.py:handle_new_message` → store received message → generate AI response (or fallback) → send auto-response → store sent message.
 
 ## Key Dependencies
 
 - **Telethon 1.36.0** - Telegram client library (async, uses asyncio)
 - **Flask 3.0.0** - Web UI and REST API
+- **openai >=1.0.0** - AI response generation (optional)
 - **python-dotenv** - Environment variable loading
 
 ## Configuration
 
 Required env vars (or set via web UI): `API_ID`, `API_HASH`, `PHONE` (with country code like +82).
-Optional: `NOTIFY_API_URL`, `AUTO_RESPONSE_MESSAGE`.
+Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `SYSTEM_PROMPT`, `LOG_LEVEL`.
 
 Config priority: `data/config.json` > environment variables (file config overrides env vars).
 

@@ -78,8 +78,10 @@ python main.py
    - **API ID**: my.telegram.org에서 발급받은 API ID
    - **API Hash**: my.telegram.org에서 발급받은 API Hash
    - **전화번호**: 국가코드를 포함한 전화번호 (예: +821012345678)
-   - **알림 API URL** (선택): 메시지 요약을 전송할 외부 API 주소
-   - **자동 응답 메시지** (선택): 기본 메시지 변경 가능
+   - **자동 응답 메시지** (선택): AI 미설정 시 사용되는 기본 응답 메시지
+   - **OpenAI API Key** (선택): AI 자동 응답 활성화
+   - **OpenAI Model** (선택): 사용할 모델 (기본: gpt-4o-mini)
+   - **시스템 프롬프트** (선택): AI 응답 성향 설정
 
 ### 환경 변수를 통한 설정 (선택사항)
 
@@ -89,8 +91,11 @@ python main.py
 API_ID=your_api_id
 API_HASH=your_api_hash
 PHONE=+821012345678
-NOTIFY_API_URL=https://your-api.com/notify
 AUTO_RESPONSE_MESSAGE=잠시 후 응답드리겠습니다.
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+SYSTEM_PROMPT=
+LOG_LEVEL=INFO
 ```
 
 ## 📖 사용 방법
@@ -111,7 +116,6 @@ tele-auto-gram/
 ├── ai.py                # AI 응답 생성 (OpenAI)
 ├── config.py            # 설정 관리
 ├── storage.py           # 메시지 저장 관리
-├── utils.py             # 유틸리티 함수
 ├── requirements.txt     # 의존성 목록
 ├── .env.example         # 환경 변수 예제
 ├── Dockerfile           # Docker 이미지 빌드 설정
@@ -122,9 +126,10 @@ tele-auto-gram/
 │   └── USAGE_GUIDE.md  # 사용 가이드 및 문제 해결
 ├── .github/workflows/
 │   └── docker-build.yml # CI/CD 자동 이미지 빌드
-└── data/               # 데이터 저장 디렉토리 (자동 생성)
+└── data/               # 데이터 저장 디렉토리 (자동 생성, Docker 볼륨 마운트 대상)
     ├── config.json     # 설정 파일
-    └── messages.json   # 메시지 기록
+    ├── messages.json   # 메시지 기록
+    └── bot_session.session  # Telethon 세션 파일
 ```
 
 ## 🐳 Docker 이미지
@@ -149,18 +154,6 @@ git push origin v1.0.0
 ```
 
 태그가 푸시되면 GitHub Actions가 자동으로 Docker 이미지를 빌드하고 GitHub Container Registry에 푸시합니다.
-
-## 🔔 알림 API
-
-외부 API로 메시지 요약을 전송하려면 다음 형식의 JSON을 받을 수 있는 엔드포인트를 준비하세요:
-
-```json
-{
-  "timestamp": "2024-01-01T12:00:00",
-  "sender": "User Name",
-  "summary": "메시지 요약 내용"
-}
-```
 
 ## 📝 메시지 저장
 
