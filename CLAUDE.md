@@ -29,7 +29,7 @@ There are no tests, linter, or type checker configured in this project.
 ```
 main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ├── web.py       # Flask REST API (config, auth, messages endpoints)
-├── bot.py       # Telethon client: web-based auth flow, listens for private messages
+├── bot.py       # Telethon client: web-based auth flow, listens for private messages, sends manual replies
 ├── config.py    # Config from .env → .env.local (override) → data/config.json (file overrides env)
 ├── storage.py   # JSON-based message store (data/messages.json, auto-prunes >7 days)
 ├── ai.py        # OpenAI-based conversation summarization + response generation
@@ -41,7 +41,9 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 
 **Auth flow**: `bot.py:start_bot` → `connect()` → `is_user_authorized()` → if not, `send_code_request()` → wait for code via web UI → `sign_in()` → optional 2FA password.
 
-**Message flow**: Telegram message → `bot.py:handle_new_message` → store received message → generate AI response (or fallback) → send auto-response → store sent message.
+**Message flow**: Telegram message → `bot.py:handle_new_message` → store received message (with `sender_id`) → generate AI response (or fallback) → 3-10s random delay → send auto-response → store sent message.
+
+**Manual reply flow**: Web UI → `POST /api/messages/send` → `bot.send_message_to_user()` (uses `asyncio.run_coroutine_threadsafe` to bridge Flask thread → bot asyncio loop) → Telethon `client.send_message()` → store sent message.
 
 ## Key Dependencies
 
@@ -49,6 +51,7 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 - **Flask 3.0.0** - Web UI and REST API
 - **openai >=1.0.0** - AI response generation (optional)
 - **python-dotenv** - Environment variable loading
+- **watchdog >=4.0.0** - File change detection for dev mode auto-restart
 
 ## Configuration
 
