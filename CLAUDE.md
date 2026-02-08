@@ -15,6 +15,11 @@ pip install -r requirements.txt
 # Run (starts both web UI on port 5000 and bot)
 python main.py
 
+# Background / Service (Linux & macOS)
+./ctl.sh start          # background start
+./ctl.sh install        # register system service (systemd / launchd)
+./ctl.sh svc-start      # start service
+
 # Dev mode: auto-restart on file changes (*.py, *.html)
 watchmedo auto-restart --patterns="*.py;*.html" --recursive -- python main.py
 

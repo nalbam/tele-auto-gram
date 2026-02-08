@@ -73,6 +73,28 @@ python main.py
 watchmedo auto-restart --patterns="*.py;*.html" --recursive -- python main.py
 ```
 
+### Option 3: ctl.sh (Background / Service, Linux & macOS)
+
+Unified control script that auto-detects OS (systemd on Linux, launchd on macOS):
+
+```bash
+# Background
+./ctl.sh start        # Start in background
+./ctl.sh stop         # Stop
+./ctl.sh restart      # Restart
+./ctl.sh status       # Check status
+./ctl.sh logs         # Tail logs
+
+# System service (auto-restart on crash, auto-start on boot)
+./ctl.sh install      # Register service
+./ctl.sh svc-start    # Start service
+./ctl.sh svc-stop     # Stop service
+./ctl.sh svc-restart  # Restart service
+./ctl.sh svc-status   # Check service status
+./ctl.sh svc-logs     # Tail service logs
+./ctl.sh uninstall    # Remove service
+```
+
 Then open `http://127.0.0.1:5000` in your browser.
 
 ## Configuration
@@ -103,6 +125,9 @@ OPENAI_MODEL=gpt-4o-mini
 RESPONSE_DELAY_MIN=3
 RESPONSE_DELAY_MAX=10
 LOG_LEVEL=INFO
+HOST=0.0.0.0
+WEB_TOKEN=
+SECRET_KEY=
 ```
 
 ## Usage
@@ -190,8 +215,10 @@ Messages older than 7 days are automatically pruned.
 
 ## Security
 
-- This bot is designed to run only on localhost (127.0.0.1)
+- Web UI binds to `0.0.0.0` by default for Docker compatibility. Set `HOST=127.0.0.1` in `.env` to restrict to localhost
+- Set `WEB_TOKEN` environment variable to require Bearer token authentication for all `/api/*` endpoints
 - Never share your API keys or session files
+- Sensitive fields (API Hash, OpenAI key) are masked in the web UI
 - Sensitive files are included in `.gitignore`
 
 ## License
