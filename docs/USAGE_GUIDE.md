@@ -1,55 +1,55 @@
-# 사용 가이드 (Usage Guide)
+# Usage Guide
 
-설치 및 기본 설정은 [README.md](../README.md)를 참고하세요.
+For installation and basic setup, see [README.md](../README.md).
 
-## 텔레그램 API 키 발급
+## Getting Telegram API Keys
 
-1. [https://my.telegram.org](https://my.telegram.org) 접속
-2. 전화번호로 로그인
-3. "API development tools" 클릭
-4. 앱 정보 입력 (App title, Short name)
-5. API ID와 API Hash 저장
+1. Go to [https://my.telegram.org](https://my.telegram.org)
+2. Log in with your phone number
+3. Click "API development tools"
+4. Fill in app details (App title, Short name)
+5. Save your API ID and API Hash
 
-## 텔레그램 인증
+## Telegram Authentication
 
-첫 실행 시:
-1. 웹 UI(`http://127.0.0.1:5000`)에서 **인증** 탭으로 이동합니다
-2. 상태가 "인증 코드 대기 중"으로 표시되면, 텔레그램으로 받은 인증 코드를 입력합니다
-3. 2단계 인증(2FA)이 설정된 경우, 비밀번호 입력 폼이 추가로 표시됩니다
+On first run:
+1. Go to the **Auth** tab in the web UI (`http://127.0.0.1:5000`)
+2. When the status shows "Waiting for code", enter the verification code sent to your Telegram
+3. If two-factor authentication (2FA) is enabled, a password input form will appear
 
-인증 완료 후 `data/bot_session.session` 파일이 생성되며, 이후 재인증 없이 실행됩니다.
+After authentication, a `data/bot_session.session` file is created and subsequent runs won't require re-authentication.
 
-## 수동 메시지 회신
+## Manual Message Reply
 
-웹 UI에서 특정 대화 상대에게 직접 메시지를 보낼 수 있습니다:
+You can send messages directly to a conversation partner from the web UI:
 
-1. 대화 목록 탭에서 사이드바의 **최근 대화** 항목을 클릭합니다
-2. 해당 상대와의 대화만 필터링되어 표시됩니다
-3. 하단 메시지 입력란에 내용을 작성합니다
-4. **전송** 버튼을 클릭하거나 `Enter` 키를 누릅니다 (`Shift+Enter`로 줄바꿈)
-5. **전체 대화** 버튼으로 전체 목록으로 돌아갈 수 있습니다
+1. Click a **recent conversation** in the sidebar on the Conversations tab
+2. Only messages with that person will be displayed
+3. Type your message in the input field at the bottom
+4. Click the **Send** button or press `Enter` (`Shift+Enter` for newline)
+5. Use the **back** button to return to the full conversation list
 
-> 수동 회신은 봇이 인증된 상태에서만 사용할 수 있습니다.
+> Manual reply is only available when the bot is authenticated.
 
-## 문제 해결
+## Troubleshooting
 
-### "설정 필요" 상태가 계속 표시됨
-- API ID, API Hash, 전화번호가 모두 입력되었는지 확인
-- 웹 UI에서 "설정 저장" 버튼을 눌렀는지 확인
+### "Not Configured" status keeps showing
+- Verify that API ID, API Hash, and phone number are all entered
+- Make sure you clicked "Save Settings" in the web UI
 
-### 인증 코드를 받지 못함
-- 전화번호에 국가코드가 포함되었는지 확인 (예: +82)
-- 텔레그램 앱에서 로그인된 상태인지 확인
+### Not receiving verification code
+- Check that your phone number includes the country code (e.g. +82)
+- Verify you are logged into the Telegram app
 
-### 메시지 자동 응답이 안 됨
-- 터미널에서 봇이 정상 실행 중인지 확인
-- "Bot is running..." 메시지가 표시되어야 함
-- 인증이 완료되었는지 확인
+### Auto response not working
+- Check that the bot is running in the terminal
+- "Bot is running..." message should be displayed
+- Verify authentication is complete
 
-### 웹 UI가 열리지 않음
-- 5000번 포트가 이미 사용 중인지 확인
-- 방화벽에서 localhost 접근이 차단되었는지 확인
+### Web UI won't open
+- Check if port 5000 is already in use
+- Check if firewall is blocking localhost access
 
-## 봇 종료
+## Stopping the Bot
 
-`Ctrl + C` 키를 눌러 봇을 종료할 수 있습니다.
+Press `Ctrl + C` to stop the bot.
