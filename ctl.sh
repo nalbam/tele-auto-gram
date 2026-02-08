@@ -9,6 +9,8 @@ PYTHON="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || tru
 
 OS="$(uname -s)"
 SERVICE_LABEL="com.nalbam.$APP_NAME"
+WEB_HOST="${HOST:-0.0.0.0}"
+WEB_PORT="${PORT:-5000}"
 
 # --- helpers ---
 
@@ -43,6 +45,11 @@ bg_start() {
     nohup "$PYTHON" main.py >> "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
     echo "Started (PID $!), log: $LOG_FILE"
+    if [ "$WEB_HOST" = "0.0.0.0" ]; then
+        echo "Web UI: http://127.0.0.1:$WEB_PORT"
+    else
+        echo "Web UI: http://$WEB_HOST:$WEB_PORT"
+    fi
 }
 
 bg_stop() {
@@ -149,6 +156,11 @@ svc_start() {
         launchctl load "$_launchd_file"
     fi
     echo "Service started"
+    if [ "$WEB_HOST" = "0.0.0.0" ]; then
+        echo "Web UI: http://127.0.0.1:$WEB_PORT"
+    else
+        echo "Web UI: http://$WEB_HOST:$WEB_PORT"
+    fi
 }
 
 svc_stop() {
@@ -164,6 +176,11 @@ svc_restart() {
     if [ "$OS" = "Linux" ]; then
         sudo systemctl restart "$APP_NAME"
         echo "Service restarted"
+        if [ "$WEB_HOST" = "0.0.0.0" ]; then
+            echo "Web UI: http://127.0.0.1:$WEB_PORT"
+        else
+            echo "Web UI: http://$WEB_HOST:$WEB_PORT"
+        fi
     elif [ "$OS" = "Darwin" ]; then
         svc_stop
         sleep 1
