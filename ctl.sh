@@ -1,13 +1,11 @@
 #!/bin/bash
 # TeleAutoGram control script
 
-set -e
-
 APP_NAME="tele-auto-gram"
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_FILE="$APP_DIR/$APP_NAME.pid"
 LOG_FILE="$APP_DIR/$APP_NAME.log"
-PYTHON="$(command -v python3 || command -v python)"
+PYTHON="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
 
 OS="$(uname -s)"
 SERVICE_LABEL="com.nalbam.$APP_NAME"
@@ -54,7 +52,7 @@ bg_stop() {
         echo "Not running"
         return
     fi
-    kill "$pid" 2>/dev/null
+    kill "$pid" 2>/dev/null || true
     rm -f "$PID_FILE"
     echo "Stopped (PID $pid)"
 }

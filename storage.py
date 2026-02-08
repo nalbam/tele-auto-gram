@@ -11,7 +11,8 @@ FALLBACK_SENDER_ID = '_unknown'
 _locks = {}
 _locks_lock = threading.Lock()
 
-# Migration flag to avoid repeated legacy migration checks
+# Thread-safe migration flag to avoid repeated legacy migration checks
+_migration_lock = threading.Lock()
 _migration_done = False
 
 
@@ -73,7 +74,10 @@ def _migrate_legacy_messages():
     global _migration_done
     if _migration_done:
         return
-    _migration_done = True
+    with _migration_lock:
+        if _migration_done:
+            return
+        _migration_done = True
 
     if not os.path.exists(LEGACY_MESSAGES_FILE):
         return

@@ -181,8 +181,14 @@ async def start_bot():
                 'I will get back to you shortly. Please wait a moment.'
             )
 
-        delay_min = float(msg_cfg.get('RESPONSE_DELAY_MIN', 3))
-        delay_max = float(msg_cfg.get('RESPONSE_DELAY_MAX', 10))
+        try:
+            delay_min = float(msg_cfg.get('RESPONSE_DELAY_MIN', 3))
+        except (TypeError, ValueError):
+            delay_min = 3.0
+        try:
+            delay_max = float(msg_cfg.get('RESPONSE_DELAY_MAX', 10))
+        except (TypeError, ValueError):
+            delay_max = 10.0
         if delay_min > delay_max:
             delay_min, delay_max = delay_max, delay_min
         delay = random.uniform(delay_min, delay_max)

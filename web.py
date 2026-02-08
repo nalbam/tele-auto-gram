@@ -21,8 +21,9 @@ def check_auth_token():
         return
     if not request.path.startswith('/api/'):
         return
-    token = request.headers.get('Authorization', '').removeprefix('Bearer ').strip()
-    if token != WEB_TOKEN:
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:].strip() if auth_header.startswith('Bearer ') else ''
+    if not secrets.compare_digest(token, WEB_TOKEN):
         return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
 
 
@@ -111,6 +112,8 @@ def get_messages():
 def send_message():
     """Send a message to a Telegram user"""
     data = request.get_json()
+    if not isinstance(data, dict):
+        return jsonify({'status': 'error', 'message': 'Invalid JSON payload'}), 400
     user_id = data.get('user_id')
     text = (data.get('text') or '').strip()
 
@@ -171,7 +174,7 @@ def get_auth_status():
 @app.route('/api/auth/code', methods=['POST'])
 def submit_auth_code():
     """Submit authentication code"""
-    data = request.get_json()
+    data = request.get_json() or {}
     code = data.get('code', '').strip()
     if not code:
         return jsonify({'status': 'error', 'message': 'Code is required'}), 400
@@ -182,7 +185,7 @@ def submit_auth_code():
 @app.route('/api/auth/password', methods=['POST'])
 def submit_auth_password():
     """Submit 2FA password"""
-    data = request.get_json()
+    data = request.get_json() or {}
     password = data.get('password', '')
     if not password:
         return jsonify({'status': 'error', 'message': 'Password is required'}), 400
@@ -192,7 +195,10 @@ def submit_auth_password():
 def run_web_ui(host=None, port=None):
     """Run the web UI server"""
     host = host or os.getenv('HOST', '0.0.0.0')
-    port = port or int(os.getenv('PORT', '5000'))
+    try:
+        port = port or int(os.getenv('PORT', '5000'))
+    except (TypeError, ValueError):
+        port = 5000
     print(f"\n Web UI is running at http://{host}:{port}")
     print("Open this URL in your browser to configure and monitor the bot\n")
     app.run(host=host, port=port, debug=False)

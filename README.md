@@ -16,7 +16,7 @@ Telegram auto-response bot built with Telethon. Manage configuration and authent
 
 ### Prerequisites
 
-- Python 3.8+ or Docker
+- Python 3.9+ or Docker
 - A Telegram account
 - API ID and API Hash (from [my.telegram.org](https://my.telegram.org))
 

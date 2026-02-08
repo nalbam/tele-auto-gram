@@ -82,8 +82,11 @@ def _migrate_system_prompt():
     """Migrate SYSTEM_PROMPT from config.json to IDENTITY.md"""
     if not os.path.exists(CONFIG_FILE):
         return
-    with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-        file_config = json.load(f)
+    try:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            file_config = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return
     prompt = file_config.pop('SYSTEM_PROMPT', None)
     if prompt:
         save_identity(prompt)
