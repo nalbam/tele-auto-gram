@@ -36,6 +36,34 @@ def save_messages(messages):
     with open(MESSAGES_FILE, 'w', encoding='utf-8') as f:
         json.dump(messages, f, indent=2, ensure_ascii=False)
 
+def get_messages_by_sender(sender_name, limit=20):
+    """Get recent messages for a specific sender
+
+    Filters received messages from sender_name and the sent responses
+    that immediately follow them (paired conversation flow).
+
+    Args:
+        sender_name: Name of the sender to filter by
+        limit: Maximum number of messages to return
+
+    Returns:
+        List of messages involving the sender, sorted by time (oldest first)
+    """
+    messages = load_messages()
+    sender_messages = []
+
+    for i, msg in enumerate(messages):
+        if msg['direction'] == 'received' and msg['sender'] == sender_name:
+            sender_messages.append(msg)
+            # Include the paired sent response if it follows immediately
+            if (i + 1 < len(messages)
+                    and messages[i + 1]['direction'] == 'sent'
+                    and messages[i + 1]['sender'] == 'Me'):
+                sender_messages.append(messages[i + 1])
+
+    return sender_messages[-limit:]
+
+
 def add_message(direction, sender, text, summary=None):
     """Add a message to storage
     

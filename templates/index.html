@@ -574,15 +574,32 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="notify_api_url">알림 API URL (선택사항)</label>
-                            <input type="url" id="notify_api_url" name="notify_api_url">
-                            <small>메시지 요약을 전송할 API 주소</small>
+                            <label for="auto_response_message">자동 응답 메시지 (폴백)</label>
+                            <textarea id="auto_response_message" name="auto_response_message" rows="4"></textarea>
+                            <small>AI 응답이 설정되지 않았거나 실패할 경우 사용되는 기본 응답</small>
+                        </div>
+
+                        <div class="card-header" style="margin-top: 16px;">
+                            <span class="card-icon">🤖</span>
+                            <h2 class="card-title">AI 응답 설정</h2>
                         </div>
 
                         <div class="form-group">
-                            <label for="auto_response_message">자동 응답 메시지</label>
-                            <textarea id="auto_response_message" name="auto_response_message" rows="4"></textarea>
-                            <small>메시지 수신 시 자동으로 보낼 응답</small>
+                            <label for="openai_api_key">OpenAI API Key</label>
+                            <input type="text" id="openai_api_key" name="openai_api_key">
+                            <small>OpenAI API 키 (설정하면 AI 자동 응답 활성화)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="openai_model">OpenAI Model</label>
+                            <input type="text" id="openai_model" name="openai_model" placeholder="gpt-4o-mini">
+                            <small>사용할 OpenAI 모델 (기본값: gpt-4o-mini)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="system_prompt">시스템 프롬프트</label>
+                            <textarea id="system_prompt" name="system_prompt" rows="8" placeholder="예: 나는 30대 개발자입니다. 친근하고 캐주얼한 톤으로 대화합니다."></textarea>
+                            <small>AI가 응답할 때 참고할 기본 정보와 성향 (예: 직업, 말투, 관심사 등)</small>
                         </div>
 
                         <button type="submit" class="btn">
@@ -627,8 +644,10 @@
                 if (data.API_ID) document.getElementById('api_id').value = data.API_ID;
                 if (data.API_HASH) document.getElementById('api_hash').value = data.API_HASH;
                 if (data.PHONE) document.getElementById('phone').value = data.PHONE;
-                if (data.NOTIFY_API_URL) document.getElementById('notify_api_url').value = data.NOTIFY_API_URL;
                 if (data.AUTO_RESPONSE_MESSAGE) document.getElementById('auto_response_message').value = data.AUTO_RESPONSE_MESSAGE;
+                if (data.OPENAI_API_KEY) document.getElementById('openai_api_key').value = data.OPENAI_API_KEY;
+                if (data.OPENAI_MODEL) document.getElementById('openai_model').value = data.OPENAI_MODEL;
+                if (data.SYSTEM_PROMPT) document.getElementById('system_prompt').value = data.SYSTEM_PROMPT;
                 
                 updateStatus(data.is_configured);
             } catch (error) {
@@ -720,8 +739,10 @@
                 API_ID: formData.get('api_id'),
                 API_HASH: formData.get('api_hash'),
                 PHONE: formData.get('phone'),
-                NOTIFY_API_URL: formData.get('notify_api_url'),
-                AUTO_RESPONSE_MESSAGE: formData.get('auto_response_message')
+                AUTO_RESPONSE_MESSAGE: formData.get('auto_response_message'),
+                OPENAI_API_KEY: formData.get('openai_api_key'),
+                OPENAI_MODEL: formData.get('openai_model') || 'gpt-4o-mini',
+                SYSTEM_PROMPT: formData.get('system_prompt')
             };
             
             try {

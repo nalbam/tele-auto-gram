@@ -4,6 +4,21 @@ import storage
 
 app = Flask(__name__)
 
+MASKED_FIELDS = ('API_HASH', 'OPENAI_API_KEY')
+
+
+def mask_value(value):
+    """Mask a sensitive value, showing first 4 and last 4 characters"""
+    if not value or len(value) <= 8:
+        return '*' * len(value) if value else ''
+    return value[:4] + '****' + value[-4:]
+
+
+def is_masked(value):
+    """Check if a value contains masking asterisks"""
+    return bool(value) and '****' in value
+
+
 @app.route('/')
 def index():
     """Serve the main UI page"""
@@ -14,6 +29,11 @@ def get_config():
     """Get current configuration"""
     cfg = config.load_config()
     cfg['is_configured'] = config.is_configured()
+
+    for field in MASKED_FIELDS:
+        if cfg.get(field):
+            cfg[field] = mask_value(cfg[field])
+
     return jsonify(cfg)
 
 @app.route('/api/config', methods=['POST'])
@@ -21,6 +41,13 @@ def save_config():
     """Save configuration"""
     try:
         data = request.get_json()
+
+        # Preserve existing values when masked value is submitted unchanged
+        existing = config.load_config()
+        for field in MASKED_FIELDS:
+            if is_masked(data.get(field, '')):
+                data[field] = existing.get(field, '')
+
         config.save_config(data)
         return jsonify({'status': 'success'})
     except Exception as e:

@@ -4,7 +4,7 @@ from telethon import TelegramClient, events
 from telethon.tl.types import User
 import config
 import storage
-import utils
+import ai
 
 logger = logging.getLogger(__name__)
 
@@ -46,27 +46,48 @@ async def start_bot():
                 sender_name = str(sender.id)
             
             message_text = event.message.message
-            
+
             # Store received message
             storage.add_message('received', sender_name, message_text)
-            
-            # Send auto-response
-            response_message = cfg.get('AUTO_RESPONSE_MESSAGE', '잠시 후 응답드리겠습니다. 조금만 기다려주세요.')
+
+            # Generate response
+            response_message = None
+            summary = None
+            openai_key = cfg.get('OPENAI_API_KEY', '')
+
+            if openai_key:
+                try:
+                    # Get recent conversation with this sender
+                    recent_messages = storage.get_messages_by_sender(sender_name)
+
+                    # Summarize conversation context
+                    conversation_summary = ai.summarize_conversation(
+                        recent_messages, sender_name
+                    )
+                    summary = conversation_summary
+
+                    # Generate AI response
+                    system_prompt = cfg.get('SYSTEM_PROMPT', '')
+                    response_message = ai.generate_response(
+                        system_prompt, conversation_summary,
+                        sender_name, message_text
+                    )
+                except Exception as e:
+                    logger.error("AI response generation failed: %s", e)
+
+            # Fallback to static message
+            if not response_message:
+                response_message = cfg.get(
+                    'AUTO_RESPONSE_MESSAGE',
+                    '잠시 후 응답드리겠습니다. 조금만 기다려주세요.'
+                )
             await event.respond(response_message)
-            
+
             # Store sent response
             storage.add_message('sent', 'Me', response_message)
-            
-            # Summarize and notify
-            summary = utils.summarize_message(message_text)
-            notify_url = cfg.get('NOTIFY_API_URL')
-            
-            if notify_url:
-                utils.notify_api(summary, sender_name, notify_url)
-            
+
             logger.debug("Received message from %s: %s", sender_name, message_text)
             logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
-            logger.debug("Summary: %s", summary)
     
     await client.start(phone=phone)
     print("Bot is running...")

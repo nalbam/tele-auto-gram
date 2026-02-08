@@ -18,8 +18,10 @@ def load_config():
         'API_ID': os.getenv('API_ID'),
         'API_HASH': os.getenv('API_HASH'),
         'PHONE': os.getenv('PHONE'),
-        'NOTIFY_API_URL': os.getenv('NOTIFY_API_URL', ''),
-        'AUTO_RESPONSE_MESSAGE': os.getenv('AUTO_RESPONSE_MESSAGE', '잠시 후 응답드리겠습니다. 조금만 기다려주세요.')
+        'AUTO_RESPONSE_MESSAGE': os.getenv('AUTO_RESPONSE_MESSAGE', '잠시 후 응답드리겠습니다. 조금만 기다려주세요.'),
+        'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
+        'OPENAI_MODEL': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+        'SYSTEM_PROMPT': os.getenv('SYSTEM_PROMPT', '')
     }
     
     # Load from config file if exists
