@@ -1,6 +1,10 @@
 *.session
 *.session-journal
+
+# local env files
+.env*.local
 .env
+
 __pycache__/
 *.py[cod]
 *$py.class
