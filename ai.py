@@ -137,7 +137,8 @@ async def generate_response(system_prompt: str, conversation_summary: str, sende
 
 
 async def update_sender_profile(current_profile: str, recent_messages: list[dict[str, Any]], sender_name: str,
-                                api_key: str = '', model: str = DEFAULT_MODEL) -> str:
+                                api_key: str = '', model: str = DEFAULT_MODEL,
+                                message_limit: int = PROFILE_RECENT_MESSAGES_LIMIT) -> str:
     """Update sender profile by extracting key info from recent conversation.
 
     Args:
@@ -146,6 +147,7 @@ async def update_sender_profile(current_profile: str, recent_messages: list[dict
         sender_name: Name of the sender
         api_key: OpenAI API key
         model: OpenAI model name
+        message_limit: Max messages to use (0 = all messages, default 10 for incremental updates)
 
     Returns:
         Updated profile markdown string, or current_profile on failure
@@ -156,9 +158,10 @@ async def update_sender_profile(current_profile: str, recent_messages: list[dict
     if not api_key:
         return current_profile
 
+    msgs = recent_messages if message_limit == 0 else recent_messages[-message_limit:]
     conversation_text = '\n'.join(
         f"{'Me' if msg['direction'] == 'sent' else sender_name}: {msg['text']}"
-        for msg in recent_messages[-PROFILE_RECENT_MESSAGES_LIMIT:]
+        for msg in msgs
     )
 
     prompt_parts = [

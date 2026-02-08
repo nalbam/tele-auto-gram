@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 SEND_MESSAGE_TIMEOUT = 10
 DEFAULT_DELAY_MIN = 3.0
 DEFAULT_DELAY_MAX = 10.0
+HISTORY_FETCH_LIMIT = 50
 _AUTH_INPUT_TIMEOUT = 600
 
 # Module-level state (protected by _state_lock)
@@ -200,13 +201,16 @@ async def _generate_response(sender_id: int, sender_name: str, message_text: str
     )
 
 
-async def _update_sender_profile(sender_id: int, sender_name: str, msg_cfg: dict[str, Any]) -> None:
+async def _update_sender_profile(sender_id: int, sender_name: str, msg_cfg: dict[str, Any],
+                                 use_all_messages: bool = False) -> None:
     """Update sender profile in background using AI
 
     Args:
         sender_id: Telegram user ID
         sender_name: display name of sender
         msg_cfg: config dict
+        use_all_messages: If True, use all stored messages for profile extraction
+                          (used for initial profile build from Telegram history)
     """
     openai_key = msg_cfg.get('OPENAI_API_KEY', '')
     openai_model = msg_cfg.get('OPENAI_MODEL', ai.DEFAULT_MODEL)
@@ -221,9 +225,11 @@ async def _update_sender_profile(sender_id: int, sender_name: str, msg_cfg: dict
         recent = await asyncio.to_thread(
             storage.get_messages_by_sender, sender_id
         )
+        message_limit = 0 if use_all_messages else ai.PROFILE_RECENT_MESSAGES_LIMIT
         updated_profile = await ai.update_sender_profile(
             current_profile, recent, sender_name,
-            api_key=openai_key, model=openai_model
+            api_key=openai_key, model=openai_model,
+            message_limit=message_limit
         )
         if updated_profile != current_profile:
             await asyncio.to_thread(
@@ -232,6 +238,47 @@ async def _update_sender_profile(sender_id: int, sender_name: str, msg_cfg: dict
             logger.debug("Updated profile for %s", sender_name)
     except Exception as e:
         logger.error("Profile update failed for %s: %s", sender_name, e)
+
+
+async def _fetch_telegram_history(cl: TelegramClient, sender_id: int, sender_name: str, current_msg_id: int) -> None:
+    """Fetch conversation history from Telegram for a new sender.
+
+    Called when no local message history exists. Fetches recent messages
+    before the current one and stores them locally for AI context.
+
+    Args:
+        cl: TelegramClient instance
+        sender_id: Telegram user ID
+        sender_name: display name of sender
+        current_msg_id: ID of the current incoming message (excluded from fetch)
+    """
+    try:
+        me = await cl.get_me()
+        messages = await cl.get_messages(sender_id, limit=HISTORY_FETCH_LIMIT, max_id=current_msg_id)
+    except Exception as e:
+        logger.warning("Failed to fetch Telegram history for %s: %s", sender_name, e)
+        return
+
+    if not messages:
+        return
+
+    history = []
+    for msg in reversed(messages):  # oldest first
+        if not msg.text:
+            continue
+        is_outgoing = msg.sender_id == me.id
+        history.append({
+            'timestamp': msg.date.isoformat(),
+            'direction': 'sent' if is_outgoing else 'received',
+            'sender': 'Me' if is_outgoing else sender_name,
+            'text': msg.text,
+            'summary': None,
+            'sender_id': sender_id,
+        })
+
+    if history:
+        await asyncio.to_thread(storage.import_messages, sender_id, history)
+        logger.info("Imported %d messages from Telegram history for %s", len(history), sender_name)
 
 
 async def _authenticate(cl: TelegramClient, phone: str, loop: asyncio.AbstractEventLoop) -> None:
@@ -334,6 +381,14 @@ async def start_bot() -> None:
 
         message_text = event.message.message
         msg_cfg = await asyncio.to_thread(config.load_config)
+
+        # Fetch Telegram history if this is a new conversation (no local history)
+        existing_messages = await asyncio.to_thread(
+            storage.get_messages_by_sender, sender.id
+        )
+        if not existing_messages:
+            await _fetch_telegram_history(cl, sender.id, sender_name, event.message.id)
+            await _update_sender_profile(sender.id, sender_name, msg_cfg, use_all_messages=True)
 
         await asyncio.to_thread(
             storage.add_message, 'received', sender_name, message_text, sender_id=sender.id

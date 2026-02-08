@@ -184,6 +184,25 @@ def save_sender_profile(sender_id: int | str, content: str) -> None:
             f.write(content)
 
 
+def import_messages(sender_id: int | str, messages: list[dict[str, Any]]) -> None:
+    """Import a batch of messages for a sender (e.g., from Telegram history sync).
+
+    Messages are merged with existing ones and sorted by timestamp.
+
+    Args:
+        sender_id: Telegram user ID
+        messages: List of message dicts to import
+    """
+    _migrate_legacy_messages()
+    ensure_messages_dir()
+    sid = str(sender_id)
+    with _get_lock(sid):
+        existing = _load_sender_messages(sid)
+        existing.extend(messages)
+        existing.sort(key=lambda msg: msg['timestamp'])
+        _save_sender_messages(sid, existing)
+
+
 def add_message(direction: str, sender: str, text: str, summary: str | None = None, sender_id: int | None = None) -> dict[str, Any]:
     """Add a message to storage
 
