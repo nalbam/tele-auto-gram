@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  tele-auto-gram:
+    image: ghcr.io/nalbam/tele-auto-gram:latest
+    container_name: tele-auto-gram
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - API_ID=${API_ID}
+      - API_HASH=${API_HASH}
+      - PHONE=${PHONE}
+      - NOTIFY_API_URL=${NOTIFY_API_URL}
+      - AUTO_RESPONSE_MESSAGE=${AUTO_RESPONSE_MESSAGE}
