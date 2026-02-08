@@ -14,11 +14,41 @@ Telethon을 이용한 텔레그램 자동 응답 봇입니다.
 
 ### 사전 요구사항
 
-- Python 3.7 이상
+- Python 3.7 이상 또는 Docker
 - 텔레그램 계정
 - API ID와 API Hash ([my.telegram.org](https://my.telegram.org)에서 발급)
 
-### 설치
+### 방법 1: Docker 사용 (권장)
+
+1. Docker 이미지 가져오기:
+```bash
+docker pull ghcr.io/nalbam/tele-auto-gram:latest
+```
+
+2. 환경 변수 설정:
+```bash
+cp .env.example .env
+# .env 파일 편집하여 API_ID, API_HASH, PHONE 설정
+```
+
+3. Docker Compose로 실행:
+```bash
+docker-compose up -d
+```
+
+또는 Docker 직접 실행:
+```bash
+docker run -d \
+  -p 5000:5000 \
+  -v $(pwd)/data:/app/data \
+  -e API_ID=your_api_id \
+  -e API_HASH=your_api_hash \
+  -e PHONE=+821012345678 \
+  --name tele-auto-gram \
+  ghcr.io/nalbam/tele-auto-gram:latest
+```
+
+### 방법 2: Python으로 직접 실행
 
 1. 저장소 클론:
 ```bash
@@ -31,8 +61,7 @@ cd tele-auto-gram
 pip install -r requirements.txt
 ```
 
-### 실행
-
+3. 실행:
 ```bash
 python main.py
 ```
@@ -81,12 +110,36 @@ tele-auto-gram/
 ├── storage.py           # 메시지 저장 관리
 ├── utils.py             # 유틸리티 함수
 ├── requirements.txt     # 의존성 목록
+├── Dockerfile           # Docker 이미지 빌드 설정
+├── docker-compose.yml   # Docker Compose 설정
 ├── templates/
 │   └── index.html      # 웹 UI 템플릿
 └── data/               # 데이터 저장 디렉토리 (자동 생성)
     ├── config.json     # 설정 파일
     └── messages.json   # 메시지 기록
 ```
+
+## 🐳 Docker 이미지
+
+### 사용 가능한 태그
+
+Docker 이미지는 GitHub Actions를 통해 자동으로 빌드되며 GitHub Container Registry에 게시됩니다:
+
+- `ghcr.io/nalbam/tele-auto-gram:latest` - 최신 버전
+- `ghcr.io/nalbam/tele-auto-gram:v1` - 메이저 버전 1.x.x
+- `ghcr.io/nalbam/tele-auto-gram:v1.0` - 마이너 버전 1.0.x
+- `ghcr.io/nalbam/tele-auto-gram:v1.0.0` - 특정 버전
+
+### 버전 태깅
+
+새 버전을 릴리스하려면 `v1.x.x` 형식의 Git 태그를 생성하세요:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+태그가 푸시되면 GitHub Actions가 자동으로 Docker 이미지를 빌드하고 GitHub Container Registry에 푸시합니다.
 
 ## 🔔 알림 API
 
