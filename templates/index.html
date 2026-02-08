@@ -5,20 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TeleAutoGram</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: #f5f5f7;
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
+            overflow: hidden;
         }
 
-        /* Sidebar Styles */
+        /* === Sidebar === */
         .sidebar {
             width: 320px;
             background: linear-gradient(180deg, #5b21b6 0%, #7c3aed 100%);
@@ -27,614 +23,276 @@
             flex-direction: column;
             position: fixed;
             height: 100vh;
-            left: 0;
-            top: 0;
-            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            left: 0; top: 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
         }
+        .sidebar-header { padding: 30px 25px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+        .logo-icon { font-size: 32px; }
+        .logo-text { font-size: 20px; font-weight: 700; }
+        .subtitle { font-size: 13px; opacity: 0.85; margin-left: 44px; }
 
-        .sidebar-header {
-            padding: 30px 25px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 8px;
-        }
-
-        .logo-icon {
-            font-size: 32px;
-        }
-
-        .logo-text {
-            font-size: 20px;
-            font-weight: 700;
-        }
-
-        .subtitle {
-            font-size: 13px;
-            opacity: 0.85;
-            margin-left: 44px;
-        }
-
-        .nav-menu {
-            padding: 20px 15px;
-            flex: 1;
-            overflow-y: auto;
-        }
-
+        .nav-menu { padding: 20px 15px; flex: 1; overflow-y: auto; }
         .nav-button {
-            width: 100%;
-            padding: 14px 18px;
-            background: transparent;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-align: left;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 8px;
+            width: 100%; padding: 14px 18px; background: transparent; color: white;
+            border: none; border-radius: 10px; font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; text-align: left;
+            display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+        }
+        .nav-button:hover { background: rgba(255,255,255,0.15); transform: translateX(4px); }
+        .nav-button.active { background: rgba(255,255,255,0.2); }
+        .nav-icon { font-size: 18px; width: 20px; text-align: center; }
+
+        /* Sidebar conversations */
+        .sidebar-conv-list { margin-top: 20px; }
+        .sidebar-conv-header {
+            font-size: 12px; font-weight: 600; opacity: 0.7;
+            padding: 10px 18px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .sidebar-conv-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 15px; margin: 2px 0; border-radius: 10px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .sidebar-conv-item:hover { background: rgba(255,255,255,0.1); }
+        .sidebar-conv-item.active { background: rgba(255,255,255,0.2); }
+        .sidebar-conv-avatar {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 700; font-size: 14px; flex-shrink: 0;
+        }
+        .sidebar-conv-info { flex: 1; min-width: 0; }
+        .sidebar-conv-name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+        .sidebar-conv-preview {
+            font-size: 12px; opacity: 0.7;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
 
-        .nav-button:hover {
-            background: rgba(255, 255, 255, 0.15);
-            transform: translateX(4px);
-        }
+        .sidebar-footer { padding: 20px 25px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .status-indicator { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; animation: pulse 2s infinite; }
+        .status-dot.configured { background: #10b981; }
+        .status-dot.not-configured { background: #f59e0b; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-        .nav-button.active {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .nav-icon {
-            font-size: 18px;
-            width: 20px;
-            text-align: center;
-        }
-
-        .conversation-list {
-            margin-top: 20px;
-        }
-
-        .conversation-header {
-            font-size: 12px;
-            font-weight: 600;
-            opacity: 0.7;
-            padding: 10px 18px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .conversation-item {
-            padding: 12px 18px;
-            margin: 4px 0;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .conversation-item:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .conversation-item.active {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .conversation-sender {
-            font-weight: 600;
-            font-size: 14px;
-            margin-bottom: 4px;
-        }
-
-        .conversation-preview {
-            font-size: 13px;
-            opacity: 0.7;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .sidebar-footer {
-            padding: 20px 25px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 13px;
-        }
-
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        .status-dot.configured {
-            background: #10b981;
-        }
-
-        .status-dot.not-configured {
-            background: #f59e0b;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        /* Main Content Styles */
+        /* === Main Content === */
         .main-content {
-            margin-left: 320px;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
+            margin-left: 320px; flex: 1;
+            display: flex; flex-direction: column; height: 100vh;
         }
-
         .top-bar {
-            background: white;
-            padding: 24px 40px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-            border-bottom: 1px solid #e5e7eb;
+            background: white; padding: 20px 40px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-bottom: 1px solid #e5e7eb; flex-shrink: 0;
         }
-
-        .page-title {
-            font-size: 28px;
-            font-weight: 700;
-            color: #1f2937;
-        }
-
+        .page-title { font-size: 24px; font-weight: 700; color: #1f2937; }
         .content-area {
-            padding: 30px 40px;
-            flex: 1;
+            padding: 30px 40px; flex: 1; overflow-y: auto; min-height: 0;
+        }
+        .content-area.chat-mode {
+            padding: 0; overflow: hidden;
+            display: flex; flex-direction: column;
         }
 
+        /* Chat top bar header */
+        .chat-top-bar { display: none; align-items: center; gap: 14px; }
+        .chat-top-bar.active { display: flex; }
+        .chat-back-btn {
+            background: none; border: none; cursor: pointer; padding: 4px;
+            color: #6b7280; display: flex; align-items: center; transition: color 0.2s;
+        }
+        .chat-back-btn:hover { color: #1f2937; }
+        .chat-top-avatar {
+            width: 38px; height: 38px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 700; font-size: 15px; flex-shrink: 0;
+        }
+        .chat-top-name { font-size: 18px; font-weight: 700; color: #1f2937; }
+
+        /* === Alert === */
         .alert {
-            padding: 16px 20px;
-            border-radius: 12px;
-            margin-bottom: 24px;
-            display: none;
-            font-weight: 500;
-            border: 1px solid;
+            padding: 16px 20px; border-radius: 12px; margin-bottom: 24px;
+            display: none; font-weight: 500; border: 1px solid;
         }
+        .alert.success { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+        .alert.error { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        .alert.show { display: block; }
 
-        .alert.success {
-            background: #d1fae5;
-            color: #065f46;
-            border-color: #6ee7b7;
-        }
-
-        .alert.error {
-            background: #fee2e2;
-            color: #991b1b;
-            border-color: #fca5a5;
-        }
-
-        .alert.show {
-            display: block;
-        }
-
+        /* === Card (auth/settings) === */
         .card {
-            background: white;
-            border-radius: 16px;
-            padding: 32px;
-            margin-bottom: 24px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            background: white; border-radius: 16px; padding: 32px;
+            margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             border: 1px solid #e5e7eb;
         }
-
         .card-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 24px;
-            padding-bottom: 16px;
-            border-bottom: 2px solid #f3f4f6;
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #f3f4f6;
         }
+        .card-icon { font-size: 24px; }
+        .card-title { font-size: 20px; font-weight: 700; color: #1f2937; }
 
-        .card-icon {
-            font-size: 24px;
-        }
-
-        .card-title {
-            font-size: 20px;
-            font-weight: 700;
-            color: #1f2937;
-        }
-
-        .form-group {
-            margin-bottom: 24px;
-        }
-
+        /* === Form === */
+        .form-group { margin-bottom: 24px; }
         .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #374151;
-            font-weight: 600;
-            font-size: 14px;
+            display: block; margin-bottom: 8px; color: #374151;
+            font-weight: 600; font-size: 14px;
         }
-
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 15px;
-            transition: all 0.2s;
-            font-family: inherit;
+        .form-group input, .form-group textarea {
+            width: 100%; padding: 12px 16px; border: 2px solid #e5e7eb;
+            border-radius: 10px; font-size: 15px; transition: all 0.2s; font-family: inherit;
         }
-
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #7c3aed;
-            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none; border-color: #7c3aed;
+            box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
         }
+        .form-group small { display: block; margin-top: 6px; color: #6b7280; font-size: 13px; }
 
-        .form-group small {
-            display: block;
-            margin-top: 6px;
-            color: #6b7280;
-            font-size: 13px;
-        }
-
+        /* === Button === */
         .btn {
             background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
-            color: white;
-            border: none;
-            padding: 14px 32px;
-            border-radius: 10px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
+            color: white; border: none; padding: 14px 32px; border-radius: 10px;
+            font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(124,58,237,0.3); }
+        .btn:active { transform: translateY(0); }
+
+        /* === Conversation List Cards === */
+        .conv-card {
+            display: flex; align-items: center; gap: 16px;
+            padding: 18px 24px; background: white; border-radius: 14px;
+            cursor: pointer; transition: all 0.2s; border: 1px solid #e5e7eb;
+            margin-bottom: 8px;
+        }
+        .conv-card:hover {
+            background: #faf5ff; border-color: #c4b5fd;
+            transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124,58,237,0.1);
+        }
+        .conv-avatar {
+            width: 50px; height: 50px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 700; font-size: 20px; flex-shrink: 0;
+        }
+        .conv-info { flex: 1; min-width: 0; }
+        .conv-top-row {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+        }
+        .conv-name { font-weight: 700; font-size: 15px; color: #1f2937; }
+        .conv-time { font-size: 12px; color: #9ca3af; flex-shrink: 0; }
+        .conv-preview {
+            font-size: 14px; color: #6b7280;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .conv-meta { text-align: right; flex-shrink: 0; }
+        .conv-msg-count {
+            display: inline-flex; align-items: center; justify-content: center;
+            background: #7c3aed; color: white; font-size: 11px; font-weight: 700;
+            min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; margin-top: 4px;
         }
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(124, 58, 237, 0.3);
+        /* === Chat Room === */
+        #view-chat.active { display: flex; flex: 1; min-height: 0; }
+        .chat-container {
+            display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;
         }
-
-        .btn:active {
-            transform: translateY(0);
+        .chat-messages {
+            flex: 1; overflow-y: auto; padding: 10px 16px;
+            display: flex; flex-direction: column; gap: 1px; background: #f8f9fb;
         }
-
-        .message-list {
-            max-height: 600px;
-            overflow-y: auto;
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        .chat-date-divider { text-align: center; margin: 10px 0 6px; }
+        .chat-date-divider span {
+            background: #e5e7eb; color: #6b7280;
+            padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 500;
         }
-
-        .message-list::-webkit-scrollbar {
-            width: 8px;
+        .chat-bubble-row { display: flex; margin: 1px 0; }
+        .chat-bubble-row.received { justify-content: flex-start; }
+        .chat-bubble-row.sent { justify-content: flex-end; }
+        .chat-bubble {
+            max-width: 70%; padding: 8px 12px; border-radius: 14px;
+            font-size: 13px; line-height: 1.4; word-wrap: break-word; white-space: pre-wrap;
         }
-
-        .message-list::-webkit-scrollbar-track {
-            background: #f3f4f6;
-            border-radius: 4px;
+        .chat-bubble.received {
+            background: white; color: #1f2937;
+            border: 1px solid #e5e7eb; border-bottom-left-radius: 4px;
         }
-
-        .message-list::-webkit-scrollbar-thumb {
-            background: #d1d5db;
-            border-radius: 4px;
+        .chat-bubble.sent {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white; border-bottom-right-radius: 4px;
         }
-
-        .message-list::-webkit-scrollbar-thumb:hover {
-            background: #9ca3af;
+        .chat-bubble-time { font-size: 10px; margin-top: 2px; opacity: 0.6; }
+        .chat-bubble.sent .chat-bubble-time { text-align: right; }
+        .chat-input-area {
+            display: flex; gap: 8px; padding: 8px 16px 10px;
+            border-top: 1px solid #e5e7eb; background: white; align-items: flex-end;
         }
-
-        .message-item {
-            padding: 18px 20px;
-            margin-bottom: 12px;
-            border-radius: 12px;
-            border-left: 4px solid;
-            transition: all 0.2s;
+        .chat-input-area textarea {
+            flex: 1; padding: 8px 14px; border: 2px solid #e5e7eb;
+            border-radius: 20px; font-size: 13px; font-family: inherit;
+            resize: none; min-height: 38px; max-height: 100px;
+            outline: none; transition: border-color 0.2s; line-height: 1.4;
         }
-
-        .message-item:hover {
-            transform: translateX(4px);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        .chat-input-area textarea:focus {
+            border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,0.1);
         }
-
-        .message-item.received {
-            background: #f0f4ff;
-            border-left-color: #7c3aed;
+        .chat-send-btn {
+            width: 38px; height: 38px; border-radius: 50%;
+            background: linear-gradient(135deg, #5b21b6, #7c3aed);
+            color: white; border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; flex-shrink: 0;
         }
+        .chat-send-btn:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(124,58,237,0.4); }
+        .chat-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
-        .message-item.sent {
-            background: #f0fdf4;
-            border-left-color: #10b981;
-        }
+        /* === Empty state === */
+        .empty-state { text-align: center; padding: 60px 20px; color: #9ca3af; }
+        .empty-state-icon { font-size: 64px; margin-bottom: 16px; opacity: 0.5; }
+        .empty-state-text { font-size: 16px; font-weight: 500; }
+        .empty-state-sub { font-size: 14px; margin-top: 8px; opacity: 0.7; }
 
-        .message-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .message-sender-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .message-sender {
-            font-weight: 700;
-            color: #1f2937;
-            font-size: 15px;
-        }
-
-        .message-direction {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .message-direction.received {
-            background: #7c3aed;
-            color: white;
-        }
-
-        .message-direction.sent {
-            background: #10b981;
-            color: white;
-        }
-
-        .message-time {
-            color: #6b7280;
-            font-size: 13px;
-        }
-
-        .message-text {
-            color: #374151;
-            line-height: 1.6;
-            word-wrap: break-word;
-            font-size: 14px;
-        }
-
-        .message-summary {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid rgba(0, 0, 0, 0.08);
-            font-style: italic;
-            opacity: 0.8;
-            font-size: 13px;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #9ca3af;
-        }
-
-        .empty-icon {
-            font-size: 64px;
-            margin-bottom: 16px;
-            opacity: 0.5;
-        }
-
-        .empty-text {
-            font-size: 16px;
-            font-weight: 500;
-        }
-
+        /* === Status / Auth badges === */
         .status-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 20px;
+            display: inline-block; padding: 8px 16px; border-radius: 8px;
+            font-size: 14px; font-weight: 600; margin-bottom: 20px;
         }
-
-        .status-badge.configured {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-badge.not-configured {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        /* Auth View Styles */
+        .status-badge.configured { background: #d1fae5; color: #065f46; }
+        .status-badge.not-configured { background: #fef3c7; color: #92400e; }
         .auth-status-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 20px;
+            display: inline-block; padding: 8px 16px; border-radius: 8px;
+            font-size: 14px; font-weight: 600; margin-bottom: 20px;
         }
-
-        .auth-status-badge.authorized {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .auth-status-badge.waiting_code,
-        .auth-status-badge.waiting_password {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .auth-status-badge.disconnected {
-            background: #f3f4f6;
-            color: #6b7280;
-        }
-
-        .auth-status-badge.error {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
+        .auth-status-badge.authorized { background: #d1fae5; color: #065f46; }
+        .auth-status-badge.waiting_code, .auth-status-badge.waiting_password { background: #fef3c7; color: #92400e; }
+        .auth-status-badge.disconnected { background: #f3f4f6; color: #6b7280; }
+        .auth-status-badge.error { background: #fee2e2; color: #991b1b; }
         .auth-error {
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fca5a5;
-            padding: 12px 16px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-weight: 500;
+            background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;
+            padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-weight: 500;
         }
+        .auth-success { text-align: center; padding: 40px 20px; color: #065f46; }
+        .auth-success-icon { font-size: 48px; margin-bottom: 12px; }
+        .auth-success-text { font-size: 18px; font-weight: 600; }
 
-        .auth-success {
-            text-align: center;
-            padding: 40px 20px;
-            color: #065f46;
-        }
+        /* === View Toggle === */
+        .view-container { display: none; }
+        .view-container.active { display: block; }
 
-        .auth-success-icon {
-            font-size: 48px;
-            margin-bottom: 12px;
-        }
-
-        .auth-success-text {
-            font-size: 18px;
-            font-weight: 600;
-        }
-
-        /* Message compose area */
-        .compose-area {
-            display: none;
-            padding: 20px;
-            border-top: 2px solid #f3f4f6;
-            margin-top: 16px;
-        }
-
-        .compose-area.active {
-            display: block;
-        }
-
-        .compose-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .compose-to {
-            font-size: 14px;
-            font-weight: 600;
-            color: #374151;
-        }
-
-        .btn-back {
-            background: #f3f4f6;
-            color: #374151;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-back:hover {
-            background: #e5e7eb;
-        }
-
-        .compose-input-row {
-            display: flex;
-            gap: 10px;
-        }
-
-        .compose-input-row textarea {
-            flex: 1;
-            padding: 12px 16px;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            font-size: 14px;
-            font-family: inherit;
-            resize: none;
-            min-height: 44px;
-            max-height: 120px;
-            transition: border-color 0.2s;
-        }
-
-        .compose-input-row textarea:focus {
-            outline: none;
-            border-color: #7c3aed;
-            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
-        }
-
-        .btn-send {
-            background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-
-        .btn-send:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
-        }
-
-        .btn-send:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        /* View Toggle */
-        .view-container {
-            display: none;
-        }
-
-        .view-container.active {
-            display: block;
-        }
-
-        /* Responsive Design */
+        /* === Responsive === */
         @media (max-width: 768px) {
             .sidebar {
-                width: 280px;
-                transform: translateX(-100%);
-                transition: transform 0.3s;
-                z-index: 100;
+                width: 280px; transform: translateX(-100%);
+                transition: transform 0.3s; z-index: 100;
             }
-
-            .sidebar.mobile-open {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: 0;
-            }
-
-            .top-bar, .content-area {
-                padding-left: 20px;
-                padding-right: 20px;
-            }
-
-            .card {
-                padding: 20px;
-            }
+            .sidebar.mobile-open { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+            .top-bar { padding: 16px 20px; }
+            .content-area { padding: 20px; }
+            .content-area.chat-mode { padding: 0; }
+            .card { padding: 20px; }
+            .chat-bubble { max-width: 80%; }
         }
     </style>
 </head>
@@ -648,26 +306,18 @@
             </div>
             <div class="subtitle">자동 응답 관리 시스템</div>
         </div>
-
         <div class="nav-menu">
             <button class="nav-button active" onclick="switchView('conversations')" id="nav-conversations">
-                <span class="nav-icon">💬</span>
-                <span>대화 목록</span>
+                <span class="nav-icon">💬</span><span>대화 목록</span>
             </button>
             <button class="nav-button" onclick="switchView('auth')" id="nav-auth">
-                <span class="nav-icon">🔐</span>
-                <span>인증</span>
+                <span class="nav-icon">🔐</span><span>인증</span>
             </button>
             <button class="nav-button" onclick="switchView('settings')" id="nav-settings">
-                <span class="nav-icon">⚙️</span>
-                <span>설정</span>
+                <span class="nav-icon">⚙️</span><span>설정</span>
             </button>
-
-            <div class="conversation-list" id="recent-conversations">
-                <!-- Recent conversations will be populated here -->
-            </div>
+            <div class="sidebar-conv-list" id="sidebar-conv-list"></div>
         </div>
-
         <div class="sidebar-footer">
             <div class="status-indicator">
                 <div class="status-dot not-configured" id="sidebar-status-dot"></div>
@@ -678,35 +328,34 @@
 
     <!-- Main Content -->
     <div class="main-content">
-        <div class="top-bar">
+        <div class="top-bar" id="top-bar">
             <h1 class="page-title" id="page-title">대화 목록</h1>
+            <div class="chat-top-bar" id="chat-top-bar">
+                <button class="chat-back-btn" onclick="exitChatRoom()">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                </button>
+                <div class="chat-top-avatar" id="chat-top-avatar"></div>
+                <span class="chat-top-name" id="chat-top-name"></span>
+            </div>
         </div>
 
-        <div class="content-area">
+        <div class="content-area" id="content-area">
             <div id="alert" class="alert"></div>
 
-            <!-- Conversations View -->
+            <!-- Conversation List View -->
             <div class="view-container active" id="view-conversations">
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-icon">📨</span>
-                        <h2 class="card-title" id="conversations-title">최근 메시지 내역</h2>
-                    </div>
-                    <div id="message-list" class="message-list">
-                        <div class="empty-state">
-                            <div class="empty-icon">💬</div>
-                            <div class="empty-text">아직 메시지가 없습니다</div>
-                        </div>
-                    </div>
-                    <div class="compose-area" id="compose-area">
-                        <div class="compose-header">
-                            <span class="compose-to" id="compose-to"></span>
-                            <button class="btn-back" onclick="clearConversationFilter()">전체 대화</button>
-                        </div>
-                        <div class="compose-input-row">
-                            <textarea id="compose-text" placeholder="메시지를 입력하세요..." rows="1"></textarea>
-                            <button class="btn-send" id="btn-send" onclick="sendManualMessage()">전송</button>
-                        </div>
+                <div id="conv-list-container"></div>
+            </div>
+
+            <!-- Chat Room View -->
+            <div class="view-container" id="view-chat">
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages"></div>
+                    <div class="chat-input-area" id="chat-input-area">
+                        <textarea id="chat-input" placeholder="메시지를 입력하세요..." rows="1"></textarea>
+                        <button class="chat-send-btn" id="chat-send-btn" onclick="sendMessage()">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -738,52 +387,42 @@
                             <input type="text" id="api_id" name="api_id" required>
                             <small>텔레그램 API ID (my.telegram.org에서 발급)</small>
                         </div>
-
                         <div class="form-group">
                             <label for="api_hash">API Hash</label>
                             <input type="text" id="api_hash" name="api_hash" required>
                             <small>텔레그램 API Hash (my.telegram.org에서 발급)</small>
                         </div>
-
                         <div class="form-group">
                             <label for="phone">전화번호</label>
                             <input type="text" id="phone" name="phone" required>
                             <small>국가코드 포함 (예: +821012345678)</small>
                         </div>
-
                         <div class="form-group">
                             <label for="auto_response_message">자동 응답 메시지 (폴백)</label>
                             <textarea id="auto_response_message" name="auto_response_message" rows="4"></textarea>
                             <small>AI 응답이 설정되지 않았거나 실패할 경우 사용되는 기본 응답</small>
                         </div>
-
                         <div class="card-header" style="margin-top: 16px;">
                             <span class="card-icon">🤖</span>
                             <h2 class="card-title">AI 응답 설정</h2>
                         </div>
-
                         <div class="form-group">
                             <label for="openai_api_key">OpenAI API Key</label>
                             <input type="text" id="openai_api_key" name="openai_api_key">
                             <small>OpenAI API 키 (설정하면 AI 자동 응답 활성화)</small>
                         </div>
-
                         <div class="form-group">
                             <label for="openai_model">OpenAI Model</label>
                             <input type="text" id="openai_model" name="openai_model" placeholder="gpt-4o-mini">
                             <small>사용할 OpenAI 모델 (기본값: gpt-4o-mini)</small>
                         </div>
-
                         <div class="form-group">
-                            <label for="system_prompt">시스템 프롬프트</label>
-                            <textarea id="system_prompt" name="system_prompt" rows="8" placeholder="예: 나는 30대 개발자입니다. 친근하고 캐주얼한 톤으로 대화합니다."></textarea>
-                            <small>AI가 응답할 때 참고할 기본 정보와 성향 (예: 직업, 말투, 관심사 등)</small>
+                            <label for="identity_content">Identity (data/IDENTITY.md)</label>
+                            <textarea id="identity_content" rows="10" placeholder="예: 나는 30대 개발자입니다. 친근하고 캐주얼한 톤으로 대화합니다." style="font-family: monospace; font-size: 13px;"></textarea>
+                            <small>AI가 응답할 때 참고할 기본 정보와 성향 — Markdown 형식 (data/IDENTITY.md 파일로 저장됨)</small>
+                            <button type="button" class="btn" style="margin-top: 10px; padding: 10px 20px; font-size: 13px;" onclick="saveIdentity()"><span>💾</span><span>Identity 저장</span></button>
                         </div>
-
-                        <button type="submit" class="btn">
-                            <span>💾</span>
-                            <span>설정 저장</span>
-                        </button>
+                        <button type="submit" class="btn"><span>💾</span><span>설정 저장</span></button>
                     </form>
                 </div>
             </div>
@@ -791,461 +430,429 @@
     </div>
 
     <script>
-        // Conversation selection state
-        let selectedConversation = null; // { sender_id, sender_name }
+        // === State ===
         let allMessages = [];
+        let conversations = [];
+        let selectedConversation = null;
 
-        // View Management
-        function switchView(viewName) {
-            // Update navigation buttons
-            document.querySelectorAll('.nav-button').forEach(btn => {
-                btn.classList.remove('active');
+        // === Utilities ===
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        function getInitial(name) { return name ? name.charAt(0).toUpperCase() : '?'; }
+        function getAvatarColor(name) {
+            const colors = ['#7c3aed','#2563eb','#059669','#d97706','#dc2626','#0891b2','#7c2d12','#4f46e5'];
+            let h = 0;
+            for (let i = 0; i < (name||'').length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+            return colors[Math.abs(h) % colors.length];
+        }
+        function truncate(t, n) { return t.length > n ? t.substring(0, n) + '...' : t; }
+        function formatMsgTime(ts) {
+            return new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        }
+        function formatConvTime(ts) {
+            const d = new Date(ts), now = new Date();
+            const diff = Math.floor((now - d) / 86400000);
+            if (diff === 0) return formatMsgTime(ts);
+            if (diff === 1) return '어제';
+            if (diff < 7) return d.toLocaleDateString('ko-KR', { weekday: 'short' });
+            return d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+        }
+        function formatDateDivider(ts) {
+            return new Date(ts).toLocaleDateString('ko-KR', {
+                year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
             });
-            
+        }
+        function showAlert(message, type) {
+            const el = document.getElementById('alert');
+            el.textContent = message;
+            el.className = `alert ${type} show`;
+            setTimeout(() => el.classList.remove('show'), 5000);
+        }
+
+        // === View Management ===
+        function switchView(viewName) {
+            document.querySelectorAll('.nav-button').forEach(b => b.classList.remove('active'));
+            const contentArea = document.getElementById('content-area');
+            const pageTitle = document.getElementById('page-title');
+            const chatTopBar = document.getElementById('chat-top-bar');
+
             if (viewName === 'conversations') {
                 document.getElementById('nav-conversations').classList.add('active');
-                document.getElementById('page-title').textContent = '대화 목록';
+                pageTitle.style.display = '';
+                pageTitle.textContent = '대화 목록';
+                chatTopBar.classList.remove('active');
+                contentArea.classList.remove('chat-mode');
+                selectedConversation = null;
+                renderConversationList();
+                updateSidebar();
+            } else if (viewName === 'chat') {
+                document.getElementById('nav-conversations').classList.add('active');
+                pageTitle.style.display = 'none';
+                chatTopBar.classList.add('active');
+                contentArea.classList.add('chat-mode');
+                if (selectedConversation) {
+                    const n = selectedConversation.sender_name;
+                    document.getElementById('chat-top-name').textContent = n;
+                    const av = document.getElementById('chat-top-avatar');
+                    av.textContent = getInitial(n);
+                    av.style.background = getAvatarColor(n);
+                }
             } else if (viewName === 'auth') {
                 document.getElementById('nav-auth').classList.add('active');
-                document.getElementById('page-title').textContent = '인증';
+                pageTitle.style.display = '';
+                pageTitle.textContent = '인증';
+                chatTopBar.classList.remove('active');
+                contentArea.classList.remove('chat-mode');
                 _lastAuthStatus = null;
                 _lastAuthError = null;
                 loadAuthStatus();
             } else if (viewName === 'settings') {
                 document.getElementById('nav-settings').classList.add('active');
-                document.getElementById('page-title').textContent = '설정';
+                pageTitle.style.display = '';
+                pageTitle.textContent = '설정';
+                chatTopBar.classList.remove('active');
+                contentArea.classList.remove('chat-mode');
             }
 
-            // Update view containers
-            document.querySelectorAll('.view-container').forEach(view => {
-                view.classList.remove('active');
-            });
+            document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
             document.getElementById('view-' + viewName).classList.add('active');
         }
 
-        // Load configuration on page load
+        // === Config ===
         async function loadConfig() {
             try {
                 const response = await fetch('/api/config');
                 const data = await response.json();
-                
                 if (data.API_ID) document.getElementById('api_id').value = data.API_ID;
                 if (data.API_HASH) document.getElementById('api_hash').value = data.API_HASH;
                 if (data.PHONE) document.getElementById('phone').value = data.PHONE;
                 if (data.AUTO_RESPONSE_MESSAGE) document.getElementById('auto_response_message').value = data.AUTO_RESPONSE_MESSAGE;
                 if (data.OPENAI_API_KEY) document.getElementById('openai_api_key').value = data.OPENAI_API_KEY;
                 if (data.OPENAI_MODEL) document.getElementById('openai_model').value = data.OPENAI_MODEL;
-                if (data.SYSTEM_PROMPT) document.getElementById('system_prompt').value = data.SYSTEM_PROMPT;
-                
+                loadIdentity();
                 updateStatus(data.is_configured);
             } catch (error) {
                 showAlert('설정을 불러오는데 실패했습니다', 'error');
             }
         }
-
-        // Load messages
-        async function loadMessages() {
-            try {
-                const response = await fetch('/api/messages');
-                allMessages = await response.json();
-
-                // Update recent conversations in sidebar (use reversed copy)
-                const reversed = [...allMessages].reverse();
-                updateRecentConversations(reversed);
-
-                renderMessages();
-            } catch (error) {
-                console.error('Error loading messages:', error);
-            }
-        }
-
-        function renderMessages() {
-            const messageList = document.getElementById('message-list');
-            const titleEl = document.getElementById('conversations-title');
-            const composeArea = document.getElementById('compose-area');
-
-            let displayMessages = [...allMessages];
-
-            if (selectedConversation) {
-                displayMessages = displayMessages.filter(
-                    msg => msg.sender_id === selectedConversation.sender_id
-                );
-                titleEl.textContent = selectedConversation.sender_name + ' 대화';
-                composeArea.classList.add('active');
-                document.getElementById('compose-to').textContent =
-                    selectedConversation.sender_name + '에게 보내기';
+        function updateStatus(isConfigured) {
+            const sc = document.getElementById('status-container');
+            const sd = document.getElementById('sidebar-status-dot');
+            const st = document.getElementById('sidebar-status-text');
+            if (isConfigured) {
+                sc.innerHTML = '<div class="status-badge configured">✓ 설정 완료</div>';
+                sd.className = 'status-dot configured'; st.textContent = '설정 완료';
             } else {
-                titleEl.textContent = '최근 메시지 내역';
-                composeArea.classList.remove('active');
-            }
-
-            if (displayMessages.length === 0) {
-                messageList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">💬</div>
-                        <div class="empty-text">아직 메시지가 없습니다</div>
-                    </div>
-                `;
-                return;
-            }
-
-            messageList.innerHTML = displayMessages.reverse().map(msg => {
-                const date = new Date(msg.timestamp);
-                const timeStr = date.toLocaleString('ko-KR');
-
-                return `
-                    <div class="message-item ${msg.direction}">
-                        <div class="message-header">
-                            <div class="message-sender-row">
-                                <span class="message-sender">${escapeHtml(msg.sender)}</span>
-                                <span class="message-direction ${msg.direction}">${msg.direction === 'received' ? '수신' : '발신'}</span>
-                            </div>
-                            <span class="message-time">${timeStr}</span>
-                        </div>
-                        <div class="message-text">${escapeHtml(msg.text)}</div>
-                        ${msg.summary ? `<div class="message-summary">요약: ${escapeHtml(msg.summary)}</div>` : ''}
-                    </div>
-                `;
-            }).join('');
-
-            // Scroll to bottom when viewing a conversation
-            if (selectedConversation) {
-                messageList.scrollTop = messageList.scrollHeight;
+                sc.innerHTML = '<div class="status-badge not-configured">⚠ 설정 필요</div>';
+                sd.className = 'status-dot not-configured'; st.textContent = '설정 필요';
             }
         }
-
-        // Update recent conversations in sidebar
-        function updateRecentConversations(messages) {
-            const container = document.getElementById('recent-conversations');
-
-            if (messages.length === 0) {
-                container.innerHTML = '';
-                return;
-            }
-
-            // Group by sender_id (skip 'Me' sent messages without a distinct sender)
-            const conversationMap = new Map();
-            messages.forEach(msg => {
-                if (msg.sender === 'Me' && !msg.sender_id) return;
-                const key = msg.sender_id || msg.sender;
-                if (!conversationMap.has(key)) {
-                    conversationMap.set(key, msg);
-                }
-            });
-
-            const recentConversations = Array.from(conversationMap.values())
-                .filter(msg => msg.sender !== 'Me')
-                .slice(0, 5);
-
-            const selectedId = selectedConversation ? selectedConversation.sender_id : null;
-
-            container.innerHTML = `
-                <div class="conversation-header">최근 대화</div>
-                ${recentConversations.map(msg => {
-                    const isActive = selectedId && msg.sender_id === selectedId;
-                    const senderId = msg.sender_id || '';
-                    const senderName = msg.sender;
-                    return `
-                        <div class="conversation-item${isActive ? ' active' : ''}"
-                             onclick="selectConversation(${senderId}, '${escapeHtml(senderName).replace(/'/g, "\\'")}')">
-                            <div class="conversation-sender">${escapeHtml(senderName)}</div>
-                            <div class="conversation-preview">${escapeHtml(msg.text.substring(0, 30))}${msg.text.length > 30 ? '...' : ''}</div>
-                        </div>
-                    `;
-                }).join('')}
-            `;
-        }
-
-        function selectConversation(senderId, senderName) {
-            if (!senderId) return;
-            selectedConversation = { sender_id: senderId, sender_name: senderName };
-            switchView('conversations');
-            renderMessages();
-            // Re-highlight active conversation in sidebar
-            const reversed = [...allMessages].reverse();
-            updateRecentConversations(reversed);
-        }
-
-        function clearConversationFilter() {
-            selectedConversation = null;
-            document.getElementById('compose-text').value = '';
-            renderMessages();
-            const reversed = [...allMessages].reverse();
-            updateRecentConversations(reversed);
-        }
-
-        async function sendManualMessage() {
-            if (!selectedConversation) return;
-
-            const textarea = document.getElementById('compose-text');
-            const text = textarea.value.trim();
-            if (!text) return;
-
-            const btn = document.getElementById('btn-send');
-            btn.disabled = true;
-
-            try {
-                const response = await fetch('/api/messages/send', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: selectedConversation.sender_id,
-                        text: text
-                    })
-                });
-
-                if (response.ok) {
-                    textarea.value = '';
-                    textarea.style.height = 'auto';
-                    await loadMessages();
-                } else {
-                    const data = await response.json();
-                    showAlert(data.message || '메시지 전송에 실패했습니다', 'error');
-                }
-            } catch (error) {
-                showAlert('메시지 전송 중 오류가 발생했습니다', 'error');
-            } finally {
-                btn.disabled = false;
-            }
-        }
-
-        // Save configuration
         document.getElementById('config-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const config = {
-                API_ID: formData.get('api_id'),
-                API_HASH: formData.get('api_hash'),
-                PHONE: formData.get('phone'),
-                AUTO_RESPONSE_MESSAGE: formData.get('auto_response_message'),
-                OPENAI_API_KEY: formData.get('openai_api_key'),
-                OPENAI_MODEL: formData.get('openai_model') || 'gpt-4o-mini',
-                SYSTEM_PROMPT: formData.get('system_prompt')
+            const fd = new FormData(e.target);
+            const cfg = {
+                API_ID: fd.get('api_id'), API_HASH: fd.get('api_hash'), PHONE: fd.get('phone'),
+                AUTO_RESPONSE_MESSAGE: fd.get('auto_response_message'),
+                OPENAI_API_KEY: fd.get('openai_api_key'),
+                OPENAI_MODEL: fd.get('openai_model') || 'gpt-4o-mini'
             };
-            
             try {
-                const response = await fetch('/api/config', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(config)
+                const r = await fetch('/api/config', {
+                    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg)
                 });
-                
-                if (response.ok) {
-                    showAlert('설정이 저장되었습니다', 'success');
-                    loadConfig();
-                } else {
-                    showAlert('설정 저장에 실패했습니다', 'error');
-                }
-            } catch (error) {
-                showAlert('설정 저장 중 오류가 발생했습니다', 'error');
-            }
+                if (r.ok) { showAlert('설정이 저장되었습니다', 'success'); loadConfig(); }
+                else { showAlert('설정 저장에 실패했습니다', 'error'); }
+            } catch (err) { showAlert('설정 저장 중 오류가 발생했습니다', 'error'); }
         });
 
-        function updateStatus(isConfigured) {
-            const statusContainer = document.getElementById('status-container');
-            const sidebarDot = document.getElementById('sidebar-status-dot');
-            const sidebarText = document.getElementById('sidebar-status-text');
-            
-            if (isConfigured) {
-                statusContainer.innerHTML = '<div class="status-badge configured">✓ 설정 완료</div>';
-                sidebarDot.className = 'status-dot configured';
-                sidebarText.textContent = '설정 완료';
-            } else {
-                statusContainer.innerHTML = '<div class="status-badge not-configured">⚠ 설정 필요</div>';
-                sidebarDot.className = 'status-dot not-configured';
-                sidebarText.textContent = '설정 필요';
+        // === Identity ===
+        async function loadIdentity() {
+            try {
+                const r = await fetch('/api/identity');
+                const data = await r.json();
+                document.getElementById('identity_content').value = data.content || '';
+            } catch (err) { console.error('Error loading identity:', err); }
+        }
+        async function saveIdentity() {
+            const content = document.getElementById('identity_content').value;
+            try {
+                const r = await fetch('/api/identity', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ content })
+                });
+                if (r.ok) showAlert('Identity가 저장되었습니다', 'success');
+                else showAlert('Identity 저장에 실패했습니다', 'error');
+            } catch (err) { showAlert('Identity 저장 중 오류가 발생했습니다', 'error'); }
+        }
+
+        // === Messages & Conversations ===
+        async function loadMessages() {
+            try {
+                const r = await fetch('/api/messages');
+                allMessages = await r.json();
+                conversations = buildConversations(allMessages);
+                updateSidebar();
+
+                const chatActive = document.getElementById('view-chat').classList.contains('active');
+                const convActive = document.getElementById('view-conversations').classList.contains('active');
+                if (chatActive && selectedConversation) renderChatMessages();
+                else if (convActive) renderConversationList();
+            } catch (err) { console.error('Error loading messages:', err); }
+        }
+
+        function buildConversations(messages) {
+            const map = new Map();
+            for (const msg of messages) {
+                const sid = msg.sender_id;
+                if (!sid) {
+                    if (msg.direction === 'received') {
+                        const key = 'name:' + msg.sender;
+                        if (!map.has(key)) map.set(key, { sender_id: null, sender_name: msg.sender, messages: [] });
+                        map.get(key).messages.push(msg);
+                    }
+                    continue;
+                }
+                const key = 'id:' + sid;
+                if (!map.has(key)) map.set(key, { sender_id: sid, sender_name: null, messages: [] });
+                const conv = map.get(key);
+                conv.messages.push(msg);
+                if (msg.direction === 'received' && msg.sender !== 'Me') conv.sender_name = msg.sender;
             }
+            return Array.from(map.values())
+                .filter(c => c.sender_name)
+                .sort((a, b) => {
+                    const at = a.messages[a.messages.length - 1].timestamp;
+                    const bt = b.messages[b.messages.length - 1].timestamp;
+                    return bt.localeCompare(at);
+                });
         }
 
-        function showAlert(message, type) {
-            const alert = document.getElementById('alert');
-            alert.textContent = message;
-            alert.className = `alert ${type} show`;
-            
-            setTimeout(() => {
-                alert.classList.remove('show');
-            }, 5000);
+        function renderConversationList() {
+            const container = document.getElementById('conv-list-container');
+            if (conversations.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <div class="empty-state-text">아직 대화가 없습니다</div>
+                        <div class="empty-state-sub">메시지가 수신되면 여기에 표시됩니다</div>
+                    </div>`;
+                return;
+            }
+            container.innerHTML = conversations.map(conv => {
+                const last = conv.messages[conv.messages.length - 1];
+                const preview = last.direction === 'sent' ? '나: ' + last.text : last.text;
+                const time = formatConvTime(last.timestamp);
+                const initial = getInitial(conv.sender_name);
+                const color = getAvatarColor(conv.sender_name);
+                const received = conv.messages.filter(m => m.direction === 'received').length;
+                const sid = conv.sender_id || 'null';
+                const sname = escapeHtml(conv.sender_name).replace(/'/g, "\\'");
+                return `
+                    <div class="conv-card" onclick="enterChatRoom(${sid},'${sname}')">
+                        <div class="conv-avatar" style="background:${color}">${initial}</div>
+                        <div class="conv-info">
+                            <div class="conv-top-row">
+                                <span class="conv-name">${escapeHtml(conv.sender_name)}</span>
+                                <span class="conv-time">${time}</span>
+                            </div>
+                            <div class="conv-preview">${escapeHtml(truncate(preview, 40))}</div>
+                        </div>
+                        <div class="conv-meta">
+                            <div class="conv-msg-count">${received}</div>
+                        </div>
+                    </div>`;
+            }).join('');
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        // === Chat Room ===
+        function enterChatRoom(senderId, senderName) {
+            if (!senderId) return;
+            selectedConversation = { sender_id: senderId, sender_name: senderName };
+            switchView('chat');
+            renderChatMessages();
+            updateSidebar();
+            document.getElementById('chat-input').focus();
         }
 
-        // Auth status management
+        function exitChatRoom() {
+            selectedConversation = null;
+            document.getElementById('chat-input').value = '';
+            switchView('conversations');
+        }
+
+        function renderChatMessages() {
+            if (!selectedConversation) return;
+            const conv = conversations.find(c => c.sender_id === selectedConversation.sender_id);
+            const container = document.getElementById('chat-messages');
+
+            if (!conv || conv.messages.length === 0) {
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-text">메시지가 없습니다</div></div>';
+                return;
+            }
+
+            const wasAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
+            let html = '';
+            let lastDate = null;
+
+            for (const msg of conv.messages) {
+                const msgDate = new Date(msg.timestamp).toDateString();
+                if (msgDate !== lastDate) {
+                    html += `<div class="chat-date-divider"><span>${formatDateDivider(msg.timestamp)}</span></div>`;
+                    lastDate = msgDate;
+                }
+                const dir = msg.direction;
+                const time = formatMsgTime(msg.timestamp);
+                html += `<div class="chat-bubble-row ${dir}"><div class="chat-bubble ${dir}"><div>${escapeHtml(msg.text)}</div><div class="chat-bubble-time">${time}</div></div></div>`;
+            }
+
+            container.innerHTML = html;
+            if (wasAtBottom || !container.dataset.init) {
+                container.scrollTop = container.scrollHeight;
+                container.dataset.init = '1';
+            }
+
+            const inputArea = document.getElementById('chat-input-area');
+            inputArea.style.display = selectedConversation.sender_id ? 'flex' : 'none';
+        }
+
+        async function sendMessage() {
+            if (!selectedConversation || !selectedConversation.sender_id) return;
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const btn = document.getElementById('chat-send-btn');
+            btn.disabled = true;
+            try {
+                const r = await fetch('/api/messages/send', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ user_id: selectedConversation.sender_id, text })
+                });
+                if (r.ok) {
+                    input.value = '';
+                    input.style.height = 'auto';
+                    await loadMessages();
+                } else {
+                    const data = await r.json();
+                    showAlert(data.message || '메시지 전송에 실패했습니다', 'error');
+                }
+            } catch (err) { showAlert('메시지 전송 중 오류가 발생했습니다', 'error'); }
+            finally { btn.disabled = false; }
+        }
+
+        // === Sidebar ===
+        function updateSidebar() {
+            const container = document.getElementById('sidebar-conv-list');
+            if (conversations.length === 0) { container.innerHTML = ''; return; }
+            const selId = selectedConversation ? selectedConversation.sender_id : null;
+
+            container.innerHTML = `
+                <div class="sidebar-conv-header">대화</div>
+                ${conversations.slice(0, 8).map(conv => {
+                    const active = selId === conv.sender_id;
+                    const last = conv.messages[conv.messages.length - 1];
+                    const preview = truncate(last.text, 25);
+                    const initial = getInitial(conv.sender_name);
+                    const color = getAvatarColor(conv.sender_name);
+                    const sid = conv.sender_id || 'null';
+                    const sname = escapeHtml(conv.sender_name).replace(/'/g, "\\'");
+                    return `
+                        <div class="sidebar-conv-item${active ? ' active' : ''}"
+                             onclick="enterChatRoom(${sid},'${sname}')">
+                            <div class="sidebar-conv-avatar" style="background:${color}">${initial}</div>
+                            <div class="sidebar-conv-info">
+                                <div class="sidebar-conv-name">${escapeHtml(conv.sender_name)}</div>
+                                <div class="sidebar-conv-preview">${escapeHtml(preview)}</div>
+                            </div>
+                        </div>`;
+                }).join('')}`;
+        }
+
+        // === Auth ===
         const AUTH_STATUS_LABELS = {
-            'disconnected': '연결 안됨',
-            'waiting_code': '인증 코드 대기 중',
-            'waiting_password': '2FA 비밀번호 대기 중',
-            'authorized': '인증 완료',
-            'error': '오류'
+            'disconnected': '연결 안됨', 'waiting_code': '인증 코드 대기 중',
+            'waiting_password': '2FA 비밀번호 대기 중', 'authorized': '인증 완료', 'error': '오류'
         };
-
-        let _lastAuthStatus = null;
-        let _lastAuthError = null;
+        let _lastAuthStatus = null, _lastAuthError = null;
 
         async function loadAuthStatus() {
             try {
-                const response = await fetch('/api/auth/status');
-                const data = await response.json();
-
-                // Only re-render when status or error actually changed
-                if (data.status === _lastAuthStatus && data.error === _lastAuthError) {
-                    return;
-                }
-                _lastAuthStatus = data.status;
-                _lastAuthError = data.error;
-
+                const r = await fetch('/api/auth/status');
+                const data = await r.json();
+                if (data.status === _lastAuthStatus && data.error === _lastAuthError) return;
+                _lastAuthStatus = data.status; _lastAuthError = data.error;
                 renderAuthView(data);
-            } catch (error) {
-                console.error('Error loading auth status:', error);
-            }
+            } catch (err) { console.error('Error loading auth status:', err); }
         }
-
         function renderAuthView(data) {
-            const statusContainer = document.getElementById('auth-status-container');
-            const errorContainer = document.getElementById('auth-error-container');
-            const formContainer = document.getElementById('auth-form-container');
-
-            const statusLabel = AUTH_STATUS_LABELS[data.status] || data.status;
-            statusContainer.innerHTML = `<div class="auth-status-badge ${data.status}">${statusLabel}</div>`;
-
-            if (data.error) {
-                errorContainer.innerHTML = `<div class="auth-error">${escapeHtml(data.error)}</div>`;
-            } else {
-                errorContainer.innerHTML = '';
-            }
-
+            const sc = document.getElementById('auth-status-container');
+            const ec = document.getElementById('auth-error-container');
+            const fc = document.getElementById('auth-form-container');
+            sc.innerHTML = `<div class="auth-status-badge ${data.status}">${AUTH_STATUS_LABELS[data.status] || data.status}</div>`;
+            ec.innerHTML = data.error ? `<div class="auth-error">${escapeHtml(data.error)}</div>` : '';
             if (data.status === 'waiting_code') {
-                formContainer.innerHTML = `
-                    <p style="margin-bottom: 16px; color: #374151;">Telegram으로 전송된 인증 코드를 입력하세요.</p>
-                    <form id="auth-code-form">
-                        <div class="form-group">
-                            <label for="auth_code">인증 코드</label>
-                            <input type="text" id="auth_code" name="auth_code" placeholder="12345" required
-                                   autocomplete="one-time-code" inputmode="numeric" maxlength="10">
-                        </div>
-                        <button type="submit" class="btn">
-                            <span>🔑</span>
-                            <span>코드 제출</span>
-                        </button>
-                    </form>
-                `;
+                fc.innerHTML = `<p style="margin-bottom:16px;color:#374151;">Telegram으로 전송된 인증 코드를 입력하세요.</p>
+                    <form id="auth-code-form"><div class="form-group"><label for="auth_code">인증 코드</label>
+                    <input type="text" id="auth_code" placeholder="12345" required autocomplete="one-time-code" inputmode="numeric" maxlength="10">
+                    </div><button type="submit" class="btn"><span>🔑</span><span>코드 제출</span></button></form>`;
                 document.getElementById('auth-code-form').addEventListener('submit', submitCode);
             } else if (data.status === 'waiting_password') {
-                formContainer.innerHTML = `
-                    <p style="margin-bottom: 16px; color: #374151;">2단계 인증(2FA) 비밀번호를 입력하세요.</p>
-                    <form id="auth-password-form">
-                        <div class="form-group">
-                            <label for="auth_password">2FA 비밀번호</label>
-                            <input type="password" id="auth_password" name="auth_password" required>
-                        </div>
-                        <button type="submit" class="btn">
-                            <span>🔑</span>
-                            <span>비밀번호 제출</span>
-                        </button>
-                    </form>
-                `;
+                fc.innerHTML = `<p style="margin-bottom:16px;color:#374151;">2단계 인증(2FA) 비밀번호를 입력하세요.</p>
+                    <form id="auth-password-form"><div class="form-group"><label for="auth_password">2FA 비밀번호</label>
+                    <input type="password" id="auth_password" required></div>
+                    <button type="submit" class="btn"><span>🔑</span><span>비밀번호 제출</span></button></form>`;
                 document.getElementById('auth-password-form').addEventListener('submit', submitPassword);
             } else if (data.status === 'authorized') {
-                formContainer.innerHTML = `
-                    <div class="auth-success">
-                        <div class="auth-success-icon">✅</div>
-                        <div class="auth-success-text">Telegram 인증이 완료되었습니다</div>
-                    </div>
-                `;
+                fc.innerHTML = '<div class="auth-success"><div class="auth-success-icon">✅</div><div class="auth-success-text">Telegram 인증이 완료되었습니다</div></div>';
             } else if (data.status === 'disconnected') {
-                formContainer.innerHTML = `
-                    <p style="color: #6b7280;">봇이 아직 시작되지 않았습니다. 설정을 완료한 후 서버를 재시작하세요.</p>
-                `;
+                fc.innerHTML = '<p style="color:#6b7280;">봇이 아직 시작되지 않았습니다. 설정을 완료한 후 서버를 재시작하세요.</p>';
             } else if (data.status === 'error') {
-                formContainer.innerHTML = `
-                    <p style="color: #991b1b;">인증 중 오류가 발생했습니다. 설정을 확인한 후 서버를 재시작하세요.</p>
-                `;
-            } else {
-                formContainer.innerHTML = '';
-            }
+                fc.innerHTML = '<p style="color:#991b1b;">인증 중 오류가 발생했습니다. 설정을 확인한 후 서버를 재시작하세요.</p>';
+            } else { fc.innerHTML = ''; }
         }
-
         async function submitCode(e) {
             e.preventDefault();
             const code = document.getElementById('auth_code').value.trim();
             if (!code) return;
-
             try {
-                const response = await fetch('/api/auth/code', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
-                });
-                if (response.ok) {
-                    showAlert('인증 코드가 제출되었습니다', 'success');
-                    // Wait briefly for bot to process
-                    setTimeout(loadAuthStatus, 1500);
-                } else {
-                    const data = await response.json();
-                    showAlert(data.message || '코드 제출에 실패했습니다', 'error');
-                }
-            } catch (error) {
-                showAlert('코드 제출 중 오류가 발생했습니다', 'error');
-            }
+                const r = await fetch('/api/auth/code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code}) });
+                if (r.ok) { showAlert('인증 코드가 제출되었습니다','success'); setTimeout(loadAuthStatus,1500); }
+                else { const d = await r.json(); showAlert(d.message||'코드 제출에 실패했습니다','error'); }
+            } catch(err) { showAlert('코드 제출 중 오류가 발생했습니다','error'); }
         }
-
         async function submitPassword(e) {
             e.preventDefault();
             const password = document.getElementById('auth_password').value;
             if (!password) return;
-
             try {
-                const response = await fetch('/api/auth/password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
-                });
-                if (response.ok) {
-                    showAlert('비밀번호가 제출되었습니다', 'success');
-                    // Wait briefly for bot to process
-                    setTimeout(loadAuthStatus, 1500);
-                } else {
-                    const data = await response.json();
-                    showAlert(data.message || '비밀번호 제출에 실패했습니다', 'error');
-                }
-            } catch (error) {
-                showAlert('비밀번호 제출 중 오류가 발생했습니다', 'error');
-            }
+                const r = await fetch('/api/auth/password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password}) });
+                if (r.ok) { showAlert('비밀번호가 제출되었습니다','success'); setTimeout(loadAuthStatus,1500); }
+                else { const d = await r.json(); showAlert(d.message||'비밀번호 제출에 실패했습니다','error'); }
+            } catch(err) { showAlert('비밀번호 제출 중 오류가 발생했습니다','error'); }
         }
 
-        // Compose textarea: Enter to send, Shift+Enter for newline
-        document.getElementById('compose-text').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendManualMessage();
-            }
+        // === Input handlers ===
+        document.getElementById('chat-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
         });
-
-        // Auto-resize compose textarea
-        document.getElementById('compose-text').addEventListener('input', function() {
+        document.getElementById('chat-input').addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && selectedConversation) exitChatRoom();
+        });
 
-        // Initialize
+        // === Init ===
         loadConfig();
         loadMessages();
-
-        // Reload messages every 10 seconds
         setInterval(loadMessages, 10000);
-
-        // Poll auth status every 3 seconds
         setInterval(function() {
-            const authView = document.getElementById('view-auth');
-            if (authView && authView.classList.contains('active')) {
-                loadAuthStatus();
-            }
+            const v = document.getElementById('view-auth');
+            if (v && v.classList.contains('active')) loadAuthStatus();
         }, 3000);
     </script>
 </body>

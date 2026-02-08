@@ -22,7 +22,6 @@ def load_config():
         'AUTO_RESPONSE_MESSAGE': os.getenv('AUTO_RESPONSE_MESSAGE', '잠시 후 응답드리겠습니다. 조금만 기다려주세요.'),
         'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
         'OPENAI_MODEL': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
-        'SYSTEM_PROMPT': os.getenv('SYSTEM_PROMPT', '')
     }
     
     # Load from config file if exists
@@ -38,6 +37,49 @@ def save_config(config):
     ensure_data_dir()
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
+
+IDENTITY_FILE = 'data/IDENTITY.md'
+
+DEFAULT_IDENTITY = """# Identity
+
+당신은 친절한 대화 상대입니다. 자연스럽고 간결하게 응답하세요.
+""".lstrip()
+
+
+def load_identity():
+    """Load identity prompt from data/IDENTITY.md, auto-create if missing.
+
+    Migrates SYSTEM_PROMPT from config.json on first call if IDENTITY.md
+    does not exist yet.
+    """
+    ensure_data_dir()
+    if not os.path.exists(IDENTITY_FILE):
+        _migrate_system_prompt()
+    if not os.path.exists(IDENTITY_FILE):
+        save_identity(DEFAULT_IDENTITY)
+    with open(IDENTITY_FILE, 'r', encoding='utf-8') as f:
+        return f.read()
+
+
+def _migrate_system_prompt():
+    """Migrate SYSTEM_PROMPT from config.json to IDENTITY.md"""
+    if not os.path.exists(CONFIG_FILE):
+        return
+    with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+        file_config = json.load(f)
+    prompt = file_config.pop('SYSTEM_PROMPT', None)
+    if prompt:
+        save_identity(prompt)
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(file_config, f, indent=2, ensure_ascii=False)
+
+
+def save_identity(content):
+    """Save identity prompt to data/IDENTITY.md"""
+    ensure_data_dir()
+    with open(IDENTITY_FILE, 'w', encoding='utf-8') as f:
+        f.write(content)
+
 
 def is_configured():
     """Check if bot is configured"""

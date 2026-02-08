@@ -139,7 +139,7 @@ async def start_bot():
         if openai_key:
             try:
                 # Get recent conversation with this sender
-                recent_messages = storage.get_messages_by_sender(sender_name)
+                recent_messages = storage.get_messages_by_sender(sender.id)
 
                 # Summarize conversation context
                 conversation_summary = ai.summarize_conversation(
@@ -148,7 +148,7 @@ async def start_bot():
                 summary = conversation_summary
 
                 # Generate AI response
-                system_prompt = cfg.get('SYSTEM_PROMPT', '')
+                system_prompt = config.load_identity()
                 response_message = ai.generate_response(
                     system_prompt, conversation_summary,
                     sender_name, message_text

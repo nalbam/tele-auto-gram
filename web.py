@@ -109,6 +109,26 @@ def send_message():
     return jsonify({'status': 'success'})
 
 
+@app.route('/api/identity', methods=['GET'])
+def get_identity():
+    """Get identity prompt content"""
+    content = config.load_identity()
+    return jsonify({'content': content})
+
+
+@app.route('/api/identity', methods=['POST'])
+def save_identity():
+    """Save identity prompt content"""
+    try:
+        data = request.get_json()
+        content = data.get('content', '')
+        config.save_identity(content)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        print(f"Error saving identity: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to save identity'}), 500
+
+
 @app.route('/api/auth/status', methods=['GET'])
 def get_auth_status():
     """Get current authentication status"""

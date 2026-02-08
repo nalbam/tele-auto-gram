@@ -31,7 +31,7 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ├── web.py       # Flask REST API (config, auth, messages endpoints)
 ├── bot.py       # Telethon client: web-based auth flow, listens for private messages, sends manual replies
 ├── config.py    # Config from .env → .env.local (override) → data/config.json (file overrides env)
-├── storage.py   # JSON-based message store (data/messages.json, auto-prunes >7 days)
+├── storage.py   # JSON-based message store (data/messages/{sender_id}.json, auto-prunes >7 days)
 ├── ai.py        # OpenAI-based conversation summarization + response generation
 └── templates/
     └── index.html  # SPA web UI (vanilla JS, Tailwind-style CSS)
@@ -56,7 +56,9 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 ## Configuration
 
 Required env vars (or set via web UI): `API_ID`, `API_HASH`, `PHONE` (with country code like +82).
-Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `SYSTEM_PROMPT`, `LOG_LEVEL`.
+Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `LOG_LEVEL`.
+
+AI identity/persona is stored in `data/IDENTITY.md` (auto-created with defaults if missing, editable via web UI).
 
 Config priority: `data/config.json` > `.env.local` > `.env` > environment variables. File config has highest priority; `.env.local` overrides `.env`.
 
@@ -64,9 +66,12 @@ Config priority: `data/config.json` > `.env.local` > `.env` > environment variab
 
 All data lives in `data/` directory (gitignored):
 - `data/config.json` - Saved configuration from web UI
-- `data/messages.json` - Message history (auto-pruned after 7 days)
+- `data/IDENTITY.md` - AI persona/system prompt (auto-created if missing, editable via web UI)
+- `data/messages/{sender_id}.json` - Per-sender message history (auto-pruned after 7 days)
 - `data/bot_session.session` - Telethon session file (persisted in data/ for Docker volume support)
 - `*.session` / `*.session-journal` - Telethon session files (gitignored, never commit)
+
+Legacy `data/messages.json` is auto-migrated to per-sender files on first access and renamed to `data/messages.json.bak`.
 
 ## CI/CD
 
@@ -79,6 +84,8 @@ GitHub Actions (`docker-build.yml`) builds and pushes Docker images to `ghcr.io/
 - `POST /api/config` - Save config to `data/config.json`
 - `GET /api/messages` - Get stored messages (includes `sender_id` for reply support)
 - `POST /api/messages/send` - Send manual message: `{ user_id: int, text: string }`
+- `GET /api/identity` - Get identity prompt content (from `data/IDENTITY.md`)
+- `POST /api/identity` - Save identity prompt: `{ content: string }`
 - `GET /api/auth/status` - Get auth state (`disconnected`|`waiting_code`|`waiting_password`|`authorized`|`error`)
 - `POST /api/auth/code` - Submit Telegram auth code
 - `POST /api/auth/password` - Submit 2FA password

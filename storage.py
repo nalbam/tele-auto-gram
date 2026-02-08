@@ -2,66 +2,136 @@ import json
 import os
 from datetime import datetime, timedelta
 
-MESSAGES_FILE = 'data/messages.json'
+MESSAGES_DIR = 'data/messages'
+LEGACY_MESSAGES_FILE = 'data/messages.json'
+FALLBACK_SENDER_ID = '_unknown'
 
-def ensure_data_dir():
-    """Ensure data directory exists"""
-    os.makedirs('data', exist_ok=True)
 
-def load_messages():
-    """Load messages from storage"""
-    ensure_data_dir()
-    if not os.path.exists(MESSAGES_FILE):
+def ensure_messages_dir():
+    """Ensure messages directory exists"""
+    os.makedirs(MESSAGES_DIR, exist_ok=True)
+
+
+def _sender_filepath(sender_id):
+    """Return file path for a sender's messages"""
+    return os.path.join(MESSAGES_DIR, f'{sender_id}.json')
+
+
+def _load_sender_messages(sender_id):
+    """Load messages for a single sender with 7-day auto-prune"""
+    filepath = _sender_filepath(sender_id)
+    if not os.path.exists(filepath):
         return []
-    
-    with open(MESSAGES_FILE, 'r', encoding='utf-8') as f:
+
+    with open(filepath, 'r', encoding='utf-8') as f:
         messages = json.load(f)
-    
-    # Filter messages from last 7 days
+
     cutoff_date = datetime.now() - timedelta(days=7)
-    filtered_messages = [
+    filtered = [
         msg for msg in messages
         if datetime.fromisoformat(msg['timestamp']) > cutoff_date
     ]
-    
-    # Save filtered messages back if we removed any
-    if len(filtered_messages) < len(messages):
-        save_messages(filtered_messages)
-    
-    return filtered_messages
 
-def save_messages(messages):
-    """Save messages to storage"""
-    ensure_data_dir()
-    with open(MESSAGES_FILE, 'w', encoding='utf-8') as f:
+    if len(filtered) < len(messages):
+        _save_sender_messages(sender_id, filtered)
+
+    return filtered
+
+
+def _save_sender_messages(sender_id, messages):
+    """Save messages for a single sender. Deletes file if empty."""
+    ensure_messages_dir()
+    filepath = _sender_filepath(sender_id)
+
+    if not messages:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        return
+
+    with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(messages, f, indent=2, ensure_ascii=False)
 
-def get_messages_by_sender(sender_name, limit=20):
+
+def _migrate_legacy_messages():
+    """Migrate legacy messages.json to per-sender files"""
+    if not os.path.exists(LEGACY_MESSAGES_FILE):
+        return
+
+    with open(LEGACY_MESSAGES_FILE, 'r', encoding='utf-8') as f:
+        messages = json.load(f)
+
+    if not messages:
+        os.rename(LEGACY_MESSAGES_FILE, LEGACY_MESSAGES_FILE + '.bak')
+        return
+
+    ensure_messages_dir()
+
+    # Group messages by sender_id
+    grouped = {}
+    for msg in messages:
+        sid = msg.get('sender_id')
+        if sid is None:
+            sid = FALLBACK_SENDER_ID
+        else:
+            sid = str(sid)
+        grouped.setdefault(sid, []).append(msg)
+
+    for sid, msgs in grouped.items():
+        _save_sender_messages(sid, msgs)
+
+    os.rename(LEGACY_MESSAGES_FILE, LEGACY_MESSAGES_FILE + '.bak')
+
+
+def load_messages():
+    """Load all messages from all sender files, merged and sorted by time"""
+    _migrate_legacy_messages()
+    ensure_messages_dir()
+
+    all_messages = []
+    for filename in os.listdir(MESSAGES_DIR):
+        if not filename.endswith('.json'):
+            continue
+        sender_id = filename[:-5]  # strip .json
+        all_messages.extend(_load_sender_messages(sender_id))
+
+    all_messages.sort(key=lambda msg: msg['timestamp'])
+    return all_messages
+
+
+def save_messages(messages):
+    """Save messages grouped by sender_id (backward-compatible bulk save)"""
+    ensure_messages_dir()
+
+    grouped = {}
+    for msg in messages:
+        sid = msg.get('sender_id')
+        if sid is None:
+            sid = FALLBACK_SENDER_ID
+        else:
+            sid = str(sid)
+        grouped.setdefault(sid, []).append(msg)
+
+    for sid, msgs in grouped.items():
+        _save_sender_messages(sid, msgs)
+
+
+def get_messages_by_sender(sender_id, limit=20):
     """Get recent messages for a specific sender
 
-    Filters received messages from sender_name and the sent responses
-    that immediately follow them (paired conversation flow).
+    Loads only the sender's file instead of all messages.
 
     Args:
-        sender_name: Name of the sender to filter by
+        sender_id: Telegram user ID (int or str)
         limit: Maximum number of messages to return
 
     Returns:
         List of messages involving the sender, sorted by time (oldest first)
     """
-    messages = load_messages()
-    sender_messages = []
+    _migrate_legacy_messages()
+    ensure_messages_dir()
 
-    for i, msg in enumerate(messages):
-        if msg['direction'] == 'received' and msg['sender'] == sender_name:
-            sender_messages.append(msg)
-            # Include the paired sent response if it follows immediately
-            if (i + 1 < len(messages)
-                    and messages[i + 1]['direction'] == 'sent'
-                    and messages[i + 1]['sender'] == 'Me'):
-                sender_messages.append(messages[i + 1])
-
-    return sender_messages[-limit:]
+    messages = _load_sender_messages(str(sender_id))
+    return messages[-limit:]
 
 
 def add_message(direction, sender, text, summary=None, sender_id=None):
@@ -74,7 +144,7 @@ def add_message(direction, sender, text, summary=None, sender_id=None):
         summary: optional message summary
         sender_id: optional Telegram user ID for reply support
     """
-    messages = load_messages()
+    _migrate_legacy_messages()
 
     message = {
         'timestamp': datetime.now().isoformat(),
@@ -87,7 +157,9 @@ def add_message(direction, sender, text, summary=None, sender_id=None):
     if sender_id is not None:
         message['sender_id'] = sender_id
 
+    sid = str(sender_id) if sender_id is not None else FALLBACK_SENDER_ID
+    messages = _load_sender_messages(sid)
     messages.append(message)
-    save_messages(messages)
+    _save_sender_messages(sid, messages)
 
     return message
