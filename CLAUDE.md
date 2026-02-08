@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TeleAutoGram — Telegram 자동 응답 봇 (Python + Telethon). 웹 UI를 통해 설정·인증을 관리하고, 프라이빗 메시지에 자동으로 응답합니다.
+TeleAutoGram — Telegram auto-response bot (Python + Telethon). Manage configuration and authentication via web UI, automatically responds to private messages.
 
 ## Commands
 
@@ -58,7 +58,7 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 Required env vars (or set via web UI): `API_ID`, `API_HASH`, `PHONE` (with country code like +82).
 Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `LOG_LEVEL`.
 
-AI identity/persona is stored in `data/IDENTITY.md` (auto-created with defaults if missing, editable via web UI).
+AI identity/persona is defined in `data/IDENTITY.md` (auto-created with defaults if missing, editable via web UI).
 
 Config priority: `data/config.json` > `.env.local` > `.env` > environment variables. File config has highest priority; `.env.local` overrides `.env`.
 

@@ -160,7 +160,7 @@ async def start_bot():
         if not response_message:
             response_message = cfg.get(
                 'AUTO_RESPONSE_MESSAGE',
-                '잠시 후 응답드리겠습니다. 조금만 기다려주세요.'
+                'I will get back to you shortly. Please wait a moment.'
             )
         delay = random.uniform(3.0, 10.0)
         logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
@@ -203,7 +203,7 @@ async def start_bot():
                 break
             except PhoneCodeInvalidError:
                 auth_state['status'] = 'waiting_code'
-                auth_state['error'] = '인증 코드가 올바르지 않습니다. 다시 입력해주세요.'
+                auth_state['error'] = 'Invalid verification code. Please try again.'
                 logger.warning("Invalid phone code, retrying...")
             except PhoneCodeExpiredError:
                 # Re-send code
@@ -214,7 +214,7 @@ async def start_bot():
                     auth_state['error'] = str(e)
                     return
                 auth_state['status'] = 'waiting_code'
-                auth_state['error'] = '인증 코드가 만료되었습니다. 새 코드가 발송되었습니다.'
+                auth_state['error'] = 'Verification code expired. A new code has been sent.'
                 logger.warning("Phone code expired, re-sent code")
             except SessionPasswordNeededError:
                 # 2FA required
@@ -230,7 +230,7 @@ async def start_bot():
                         break
                     except PasswordHashInvalidError:
                         auth_state['status'] = 'waiting_password'
-                        auth_state['error'] = '비밀번호가 올바르지 않습니다. 다시 입력해주세요.'
+                        auth_state['error'] = 'Invalid password. Please try again.'
                         logger.warning("Invalid 2FA password, retrying...")
                 break
 

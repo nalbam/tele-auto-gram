@@ -19,7 +19,7 @@ def load_config():
         'API_ID': os.getenv('API_ID'),
         'API_HASH': os.getenv('API_HASH'),
         'PHONE': os.getenv('PHONE'),
-        'AUTO_RESPONSE_MESSAGE': os.getenv('AUTO_RESPONSE_MESSAGE', '잠시 후 응답드리겠습니다. 조금만 기다려주세요.'),
+        'AUTO_RESPONSE_MESSAGE': os.getenv('AUTO_RESPONSE_MESSAGE', 'I will get back to you shortly. Please wait a moment.'),
         'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY', ''),
         'OPENAI_MODEL': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
     }
@@ -42,7 +42,7 @@ IDENTITY_FILE = 'data/IDENTITY.md'
 
 DEFAULT_IDENTITY = """# Identity
 
-당신은 친절한 대화 상대입니다. 자연스럽고 간결하게 응답하세요.
+You are a friendly conversational partner. Respond naturally and concisely.
 """.lstrip()
 
 

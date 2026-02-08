@@ -1,44 +1,44 @@
-# 📱 TeleAutoGram
+# TeleAutoGram
 
-Telethon 기반 텔레그램 자동 응답 봇입니다. 웹 UI를 통해 설정과 인증을 관리하고, 프라이빗 메시지에 자동으로 응답합니다.
+Telegram auto-response bot built with Telethon. Manage configuration and authentication via a web UI, and automatically respond to private messages.
 
-## ✨ 주요 기능
+## Features
 
-- **자동 응답**: 텔레그램 메시지 수신 시 3~10초 랜덤 딜레이 후 자동 응답 전송
-- **수동 회신**: 웹 UI에서 대화를 선택하여 직접 메시지 전송
-- **AI 응답**: OpenAI API를 이용한 지능형 자동 응답 (선택사항)
-- **웹 UI 인증**: 웹 브라우저에서 Telegram 인증 코드 및 2FA 비밀번호 입력
-- **메시지 기록**: 수신/발신 메시지를 로컬에 JSON 형태로 저장 (최근 7일)
-- **웹 UI**: 모던한 관리 인터페이스 (설정, 인증, 대화 목록, 수동 회신)
-- **Docker 지원**: 비대화형 환경에서도 웹 UI를 통한 인증 가능
+- **Auto Response**: Sends an automatic reply 3–10 seconds after receiving a private message
+- **Manual Reply**: Select a conversation in the web UI and send messages directly
+- **AI Response**: Intelligent auto-responses powered by the OpenAI API (optional)
+- **Web-based Auth**: Enter Telegram verification codes and 2FA passwords from your browser
+- **Message History**: Stores sent/received messages locally as JSON (last 7 days, per-sender files)
+- **Web UI**: Modern management interface (settings, auth, conversations, manual reply)
+- **Docker Support**: Full web-based authentication for non-interactive environments
 
-## 🚀 시작하기
+## Getting Started
 
-### 사전 요구사항
+### Prerequisites
 
-- Python 3.8 이상 또는 Docker
-- 텔레그램 계정
-- API ID와 API Hash ([my.telegram.org](https://my.telegram.org)에서 발급)
+- Python 3.8+ or Docker
+- A Telegram account
+- API ID and API Hash (from [my.telegram.org](https://my.telegram.org))
 
-### 방법 1: Docker 사용 (권장)
+### Option 1: Docker (Recommended)
 
-1. Docker 이미지 가져오기:
+1. Pull the Docker image:
 ```bash
 docker pull ghcr.io/nalbam/tele-auto-gram:latest
 ```
 
-2. 환경 변수 설정:
+2. Set up environment variables:
 ```bash
 cp .env.example .env
-# .env 파일 편집하여 API_ID, API_HASH, PHONE 설정
+# Edit .env to set API_ID, API_HASH, PHONE
 ```
 
-3. Docker Compose로 실행:
+3. Run with Docker Compose:
 ```bash
 docker-compose up -d
 ```
 
-또는 Docker 직접 실행:
+Or run directly:
 ```bash
 docker run -d \
   -p 5000:5000 \
@@ -50,121 +50,122 @@ docker run -d \
   ghcr.io/nalbam/tele-auto-gram:latest
 ```
 
-### 방법 2: Python으로 직접 실행
+### Option 2: Run with Python
 
-1. 저장소 클론:
+1. Clone the repository:
 ```bash
 git clone https://github.com/nalbam/tele-auto-gram.git
 cd tele-auto-gram
 ```
 
-2. 의존성 설치:
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. 실행:
+3. Run:
 ```bash
 python main.py
 ```
 
-4. (선택) 개발 모드 - 파일 변경 시 자동 재시작:
+4. (Optional) Dev mode — auto-restart on file changes:
 ```bash
 watchmedo auto-restart --patterns="*.py;*.html" --recursive -- python main.py
 ```
 
-실행 후 브라우저에서 `http://127.0.0.1:5000`으로 접속하세요.
+Then open `http://127.0.0.1:5000` in your browser.
 
-## ⚙️ 설정
+## Configuration
 
-### 웹 UI를 통한 설정
+### Via Web UI
 
-1. `http://127.0.0.1:5000` 접속
-2. 다음 정보 입력:
-   - **API ID**: my.telegram.org에서 발급받은 API ID
-   - **API Hash**: my.telegram.org에서 발급받은 API Hash
-   - **전화번호**: 국가코드를 포함한 전화번호 (예: +821012345678)
-   - **자동 응답 메시지** (선택): AI 미설정 시 사용되는 기본 응답 메시지
-   - **OpenAI API Key** (선택): AI 자동 응답 활성화
-   - **OpenAI Model** (선택): 사용할 모델 (기본: gpt-4o-mini)
-   - **시스템 프롬프트** (선택): AI 응답 성향 설정
+1. Go to `http://127.0.0.1:5000`
+2. Enter the following:
+   - **API ID**: API ID from my.telegram.org
+   - **API Hash**: API Hash from my.telegram.org
+   - **Phone Number**: Phone number with country code (e.g. +821012345678)
+   - **Auto Response Message** (optional): Fallback message when AI is not configured
+   - **OpenAI API Key** (optional): Enables AI-powered auto responses
+   - **OpenAI Model** (optional): Model to use (default: gpt-4o-mini)
+   - **Identity** (optional): AI persona and style guide (saved as `data/IDENTITY.md`)
 
-### 환경 변수를 통한 설정 (선택사항)
+### Via Environment Variables (Optional)
 
-`.env` 파일을 생성하여 설정할 수도 있습니다. 로컬 개발 시에는 `.env.local` 파일로 `.env` 값을 덮어쓸 수 있습니다 (`.env.local`은 `.gitignore`에 포함되어 있어 커밋되지 않습니다):
+Create a `.env` file. For local development, use `.env.local` to override `.env` (`.env.local` is gitignored):
 
 ```conf
 API_ID=your_api_id
 API_HASH=your_api_hash
 PHONE=+821012345678
-AUTO_RESPONSE_MESSAGE=잠시 후 응답드리겠습니다.
+AUTO_RESPONSE_MESSAGE=I will get back to you shortly.
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
-SYSTEM_PROMPT=
 LOG_LEVEL=INFO
 ```
 
-## 📖 사용 방법
+## Usage
 
-1. **설정**: 웹 UI(설정 탭)에서 API ID, API Hash, 전화번호 입력 후 저장
-2. **서버 재시작**: 설정 저장 후 서버 재시작
-3. **인증**: 웹 UI(인증 탭)에서 Telegram 인증 코드 입력 (2FA 설정 시 비밀번호도 입력)
-4. **자동 응답**: 인증 완료 후 받은 프라이빗 메시지에 3~10초 후 자동으로 응답
-5. **메시지 확인**: 웹 UI(대화 목록 탭)에서 최근 메시지 내역 조회
-6. **수동 회신**: 사이드바에서 대화를 클릭하여 선택 후, 하단 입력란에서 직접 메시지 전송
+1. **Configure**: Enter API ID, API Hash, and phone number in the Settings tab
+2. **Restart server**: Restart after saving settings
+3. **Authenticate**: Enter the Telegram verification code in the Auth tab (and 2FA password if enabled)
+4. **Auto response**: After authentication, incoming private messages get an automatic reply after 3–10 seconds
+5. **View messages**: Check recent message history in the Conversations tab
+6. **Manual reply**: Click a conversation in the sidebar, then type and send a message
 
-## 📁 프로젝트 구조
+## Project Structure
 
 ```
 tele-auto-gram/
-├── main.py              # 메인 실행 파일 (Flask + 봇 스레드 시작)
-├── bot.py               # 텔레그램 봇 로직 (인증 흐름 + 메시지 핸들러)
-├── web.py               # 웹 UI 서버 (설정/인증/메시지 API)
-├── ai.py                # AI 응답 생성 (OpenAI)
-├── config.py            # 설정 관리
-├── storage.py           # 메시지 저장 관리
-├── requirements.txt     # 의존성 목록
-├── .env.example         # 환경 변수 예제
-├── Dockerfile           # Docker 이미지 빌드 설정
-├── docker-compose.yml   # Docker Compose 설정
+├── main.py              # Entrypoint (starts Flask + bot thread)
+├── bot.py               # Telegram bot logic (auth flow + message handler)
+├── web.py               # Web UI server (settings/auth/messages API)
+├── ai.py                # AI response generation (OpenAI)
+├── config.py            # Configuration management
+├── storage.py           # Message storage management
+├── requirements.txt     # Dependencies
+├── .env.example         # Environment variable example
+├── Dockerfile           # Docker image build config
+├── docker-compose.yml   # Docker Compose config
 ├── templates/
-│   └── index.html      # 웹 UI 템플릿
+│   └── index.html       # Web UI template
 ├── docs/
-│   └── USAGE_GUIDE.md  # 사용 가이드 및 문제 해결
+│   └── USAGE_GUIDE.md   # Usage guide and troubleshooting
 ├── .github/workflows/
-│   └── docker-build.yml # CI/CD 자동 이미지 빌드
-└── data/               # 데이터 저장 디렉토리 (자동 생성, Docker 볼륨 마운트 대상)
-    ├── config.json     # 설정 파일
-    ├── messages.json   # 메시지 기록
-    └── bot_session.session  # Telethon 세션 파일
+│   └── docker-build.yml # CI/CD auto image build
+└── data/                # Data directory (auto-created, Docker volume mount target)
+    ├── config.json      # Configuration file
+    ├── IDENTITY.md      # AI persona/identity prompt
+    ├── messages/        # Per-sender message history
+    │   └── {sender_id}.json
+    └── bot_session.session  # Telethon session file
 ```
 
-## 🐳 Docker 이미지
+## Docker Images
 
-### 사용 가능한 태그
+### Available Tags
 
-Docker 이미지는 GitHub Actions를 통해 자동으로 빌드되며 GitHub Container Registry에 게시됩니다:
+Docker images are automatically built via GitHub Actions and published to GitHub Container Registry:
 
-- `ghcr.io/nalbam/tele-auto-gram:latest` - 최신 릴리스
-- `ghcr.io/nalbam/tele-auto-gram:1` - 메이저 버전 1.x.x
-- `ghcr.io/nalbam/tele-auto-gram:1.0` - 마이너 버전 1.0.x
-- `ghcr.io/nalbam/tele-auto-gram:1.0.0` - 특정 버전
-- `ghcr.io/nalbam/tele-auto-gram:sha-xxxxxxx` - 커밋 SHA
+- `ghcr.io/nalbam/tele-auto-gram:latest` — Latest release
+- `ghcr.io/nalbam/tele-auto-gram:1` — Major version 1.x.x
+- `ghcr.io/nalbam/tele-auto-gram:1.0` — Minor version 1.0.x
+- `ghcr.io/nalbam/tele-auto-gram:1.0.0` — Specific version
+- `ghcr.io/nalbam/tele-auto-gram:sha-xxxxxxx` — Commit SHA
 
-### 버전 태깅
+### Version Tagging
 
-새 버전을 릴리스하려면 `v1.x.x` 형식의 Git 태그를 생성하세요:
+To release a new version, create a git tag in `v1.x.x` format:
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-태그가 푸시되면 GitHub Actions가 자동으로 Docker 이미지를 빌드하고 GitHub Container Registry에 푸시합니다.
+When the tag is pushed, GitHub Actions will automatically build and push the Docker image.
 
-## 📝 메시지 저장
+## Message Storage
 
-메시지는 `data/messages.json` 파일에 저장되며, 다음 형식을 따릅니다:
+Messages are stored in per-sender files under `data/messages/`:
 
 ```json
 [
@@ -172,27 +173,27 @@ git push origin v1.0.0
     "timestamp": "2024-01-01T12:00:00",
     "direction": "received",
     "sender": "User Name",
-    "text": "메시지 내용",
-    "summary": "요약",
+    "text": "Message content",
+    "summary": "Summary",
     "sender_id": 123456789
   }
 ]
 ```
 
-`sender_id`는 수동 회신에 사용되는 Telegram 사용자 ID입니다.
+The `sender_id` is the Telegram user ID used for manual replies.
 
-자동으로 7일이 지난 메시지는 삭제됩니다.
+Messages older than 7 days are automatically pruned.
 
-## 🛡️ 보안
+## Security
 
-- 이 봇은 localhost(127.0.0.1)에서만 실행되도록 설계되었습니다
-- API 키와 세션 파일은 절대 공유하지 마세요
-- `.gitignore`에 민감한 파일들이 포함되어 있습니다
+- This bot is designed to run only on localhost (127.0.0.1)
+- Never share your API keys or session files
+- Sensitive files are included in `.gitignore`
 
-## 📄 라이선스
+## License
 
 MIT License
 
-## 🤝 기여
+## Contributing
 
-이슈와 풀 리퀘스트는 언제나 환영합니다!
+Issues and pull requests are always welcome!

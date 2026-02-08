@@ -26,7 +26,7 @@ def summarize_conversation(messages, sender_name):
     model = cfg.get('OPENAI_MODEL', 'gpt-4o-mini')
 
     conversation_text = '\n'.join(
-        f"{'나' if msg['direction'] == 'sent' else sender_name}: {msg['text']}"
+        f"{'Me' if msg['direction'] == 'sent' else sender_name}: {msg['text']}"
         for msg in messages
     )
 
@@ -38,8 +38,8 @@ def summarize_conversation(messages, sender_name):
                 {
                     'role': 'system',
                     'content': (
-                        f'다음은 나와 {sender_name}의 최근 대화입니다. '
-                        '핵심 주제와 맥락을 간결하게 요약하세요.'
+                        f'Below is a recent conversation between me and {sender_name}. '
+                        'Summarize the key topics and context concisely.'
                     )
                 },
                 {
@@ -80,11 +80,11 @@ def generate_response(system_prompt, conversation_summary, sender_name, incoming
         system_parts.append(system_prompt)
     if conversation_summary:
         system_parts.append(
-            f'\n[{sender_name}과의 최근 대화 요약]\n{conversation_summary}'
+            f'\n[Recent conversation summary with {sender_name}]\n{conversation_summary}'
         )
 
     system_message = '\n'.join(system_parts) if system_parts else (
-        '당신은 친절한 대화 상대입니다. 자연스럽고 간결하게 응답하세요.'
+        'You are a friendly conversational partner. Respond naturally and concisely.'
     )
 
     try:

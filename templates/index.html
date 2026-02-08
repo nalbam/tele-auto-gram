@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -304,24 +304,24 @@
                 <span class="logo-icon">📱</span>
                 <span class="logo-text">TeleAutoGram</span>
             </div>
-            <div class="subtitle">자동 응답 관리 시스템</div>
+            <div class="subtitle">Auto Response System</div>
         </div>
         <div class="nav-menu">
             <button class="nav-button active" onclick="switchView('conversations')" id="nav-conversations">
-                <span class="nav-icon">💬</span><span>대화 목록</span>
+                <span class="nav-icon">💬</span><span>Conversations</span>
             </button>
             <button class="nav-button" onclick="switchView('auth')" id="nav-auth">
-                <span class="nav-icon">🔐</span><span>인증</span>
+                <span class="nav-icon">🔐</span><span>Auth</span>
             </button>
             <button class="nav-button" onclick="switchView('settings')" id="nav-settings">
-                <span class="nav-icon">⚙️</span><span>설정</span>
+                <span class="nav-icon">⚙️</span><span>Settings</span>
             </button>
             <div class="sidebar-conv-list" id="sidebar-conv-list"></div>
         </div>
         <div class="sidebar-footer">
             <div class="status-indicator">
                 <div class="status-dot not-configured" id="sidebar-status-dot"></div>
-                <span id="sidebar-status-text">설정 필요</span>
+                <span id="sidebar-status-text">Not Configured</span>
             </div>
         </div>
     </div>
@@ -329,7 +329,7 @@
     <!-- Main Content -->
     <div class="main-content">
         <div class="top-bar" id="top-bar">
-            <h1 class="page-title" id="page-title">대화 목록</h1>
+            <h1 class="page-title" id="page-title">Conversations</h1>
             <div class="chat-top-bar" id="chat-top-bar">
                 <button class="chat-back-btn" onclick="exitChatRoom()">
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -352,7 +352,7 @@
                 <div class="chat-container">
                     <div class="chat-messages" id="chat-messages"></div>
                     <div class="chat-input-area" id="chat-input-area">
-                        <textarea id="chat-input" placeholder="메시지를 입력하세요..." rows="1"></textarea>
+                        <textarea id="chat-input" placeholder="Type a message..." rows="1"></textarea>
                         <button class="chat-send-btn" id="chat-send-btn" onclick="sendMessage()">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                         </button>
@@ -365,7 +365,7 @@
                 <div class="card">
                     <div class="card-header">
                         <span class="card-icon">🔐</span>
-                        <h2 class="card-title">Telegram 인증</h2>
+                        <h2 class="card-title">Telegram Auth</h2>
                     </div>
                     <div id="auth-status-container"></div>
                     <div id="auth-error-container"></div>
@@ -378,51 +378,51 @@
                 <div class="card">
                     <div class="card-header">
                         <span class="card-icon">⚙️</span>
-                        <h2 class="card-title">봇 설정</h2>
+                        <h2 class="card-title">Bot Settings</h2>
                     </div>
                     <div id="status-container"></div>
                     <form id="config-form">
                         <div class="form-group">
                             <label for="api_id">API ID</label>
                             <input type="text" id="api_id" name="api_id" required>
-                            <small>텔레그램 API ID (my.telegram.org에서 발급)</small>
+                            <small>Telegram API ID (from my.telegram.org)</small>
                         </div>
                         <div class="form-group">
                             <label for="api_hash">API Hash</label>
                             <input type="text" id="api_hash" name="api_hash" required>
-                            <small>텔레그램 API Hash (my.telegram.org에서 발급)</small>
+                            <small>Telegram API Hash (from my.telegram.org)</small>
                         </div>
                         <div class="form-group">
-                            <label for="phone">전화번호</label>
+                            <label for="phone">Phone Number</label>
                             <input type="text" id="phone" name="phone" required>
-                            <small>국가코드 포함 (예: +821012345678)</small>
+                            <small>Include country code (e.g. +821012345678)</small>
                         </div>
                         <div class="form-group">
-                            <label for="auto_response_message">자동 응답 메시지 (폴백)</label>
+                            <label for="auto_response_message">Auto Response Message (Fallback)</label>
                             <textarea id="auto_response_message" name="auto_response_message" rows="4"></textarea>
-                            <small>AI 응답이 설정되지 않았거나 실패할 경우 사용되는 기본 응답</small>
+                            <small>Default response used when AI is not configured or fails</small>
                         </div>
                         <div class="card-header" style="margin-top: 16px;">
                             <span class="card-icon">🤖</span>
-                            <h2 class="card-title">AI 응답 설정</h2>
+                            <h2 class="card-title">AI Response Settings</h2>
                         </div>
                         <div class="form-group">
                             <label for="openai_api_key">OpenAI API Key</label>
                             <input type="text" id="openai_api_key" name="openai_api_key">
-                            <small>OpenAI API 키 (설정하면 AI 자동 응답 활성화)</small>
+                            <small>OpenAI API key (enables AI-powered auto responses)</small>
                         </div>
                         <div class="form-group">
                             <label for="openai_model">OpenAI Model</label>
                             <input type="text" id="openai_model" name="openai_model" placeholder="gpt-4o-mini">
-                            <small>사용할 OpenAI 모델 (기본값: gpt-4o-mini)</small>
+                            <small>OpenAI model to use (default: gpt-4o-mini)</small>
                         </div>
                         <div class="form-group">
                             <label for="identity_content">Identity (data/IDENTITY.md)</label>
-                            <textarea id="identity_content" rows="10" placeholder="예: 나는 30대 개발자입니다. 친근하고 캐주얼한 톤으로 대화합니다." style="font-family: monospace; font-size: 13px;"></textarea>
-                            <small>AI가 응답할 때 참고할 기본 정보와 성향 — Markdown 형식 (data/IDENTITY.md 파일로 저장됨)</small>
-                            <button type="button" class="btn" style="margin-top: 10px; padding: 10px 20px; font-size: 13px;" onclick="saveIdentity()"><span>💾</span><span>Identity 저장</span></button>
+                            <textarea id="identity_content" rows="10" placeholder="e.g. I am a developer in my 30s. I talk in a friendly, casual tone." style="font-family: monospace; font-size: 13px;"></textarea>
+                            <small>Persona and style guide for AI responses — Markdown format (saved as data/IDENTITY.md)</small>
+                            <button type="button" class="btn" style="margin-top: 10px; padding: 10px 20px; font-size: 13px;" onclick="saveIdentity()"><span>💾</span><span>Save Identity</span></button>
                         </div>
-                        <button type="submit" class="btn"><span>💾</span><span>설정 저장</span></button>
+                        <button type="submit" class="btn"><span>💾</span><span>Save Settings</span></button>
                     </form>
                 </div>
             </div>
@@ -450,18 +450,18 @@
         }
         function truncate(t, n) { return t.length > n ? t.substring(0, n) + '...' : t; }
         function formatMsgTime(ts) {
-            return new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+            return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         }
         function formatConvTime(ts) {
             const d = new Date(ts), now = new Date();
             const diff = Math.floor((now - d) / 86400000);
             if (diff === 0) return formatMsgTime(ts);
-            if (diff === 1) return '어제';
-            if (diff < 7) return d.toLocaleDateString('ko-KR', { weekday: 'short' });
-            return d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+            if (diff === 1) return 'Yesterday';
+            if (diff < 7) return d.toLocaleDateString('en-US', { weekday: 'short' });
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         }
         function formatDateDivider(ts) {
-            return new Date(ts).toLocaleDateString('ko-KR', {
+            return new Date(ts).toLocaleDateString('en-US', {
                 year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
             });
         }
@@ -482,7 +482,7 @@
             if (viewName === 'conversations') {
                 document.getElementById('nav-conversations').classList.add('active');
                 pageTitle.style.display = '';
-                pageTitle.textContent = '대화 목록';
+                pageTitle.textContent = 'Conversations';
                 chatTopBar.classList.remove('active');
                 contentArea.classList.remove('chat-mode');
                 selectedConversation = null;
@@ -503,7 +503,7 @@
             } else if (viewName === 'auth') {
                 document.getElementById('nav-auth').classList.add('active');
                 pageTitle.style.display = '';
-                pageTitle.textContent = '인증';
+                pageTitle.textContent = 'Auth';
                 chatTopBar.classList.remove('active');
                 contentArea.classList.remove('chat-mode');
                 _lastAuthStatus = null;
@@ -512,7 +512,7 @@
             } else if (viewName === 'settings') {
                 document.getElementById('nav-settings').classList.add('active');
                 pageTitle.style.display = '';
-                pageTitle.textContent = '설정';
+                pageTitle.textContent = 'Settings';
                 chatTopBar.classList.remove('active');
                 contentArea.classList.remove('chat-mode');
             }
@@ -535,7 +535,7 @@
                 loadIdentity();
                 updateStatus(data.is_configured);
             } catch (error) {
-                showAlert('설정을 불러오는데 실패했습니다', 'error');
+                showAlert('Failed to load settings', 'error');
             }
         }
         function updateStatus(isConfigured) {
@@ -543,11 +543,11 @@
             const sd = document.getElementById('sidebar-status-dot');
             const st = document.getElementById('sidebar-status-text');
             if (isConfigured) {
-                sc.innerHTML = '<div class="status-badge configured">✓ 설정 완료</div>';
-                sd.className = 'status-dot configured'; st.textContent = '설정 완료';
+                sc.innerHTML = '<div class="status-badge configured">✓ Configured</div>';
+                sd.className = 'status-dot configured'; st.textContent = 'Configured';
             } else {
-                sc.innerHTML = '<div class="status-badge not-configured">⚠ 설정 필요</div>';
-                sd.className = 'status-dot not-configured'; st.textContent = '설정 필요';
+                sc.innerHTML = '<div class="status-badge not-configured">⚠ Not Configured</div>';
+                sd.className = 'status-dot not-configured'; st.textContent = 'Not Configured';
             }
         }
         document.getElementById('config-form').addEventListener('submit', async (e) => {
@@ -563,9 +563,9 @@
                 const r = await fetch('/api/config', {
                     method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg)
                 });
-                if (r.ok) { showAlert('설정이 저장되었습니다', 'success'); loadConfig(); }
-                else { showAlert('설정 저장에 실패했습니다', 'error'); }
-            } catch (err) { showAlert('설정 저장 중 오류가 발생했습니다', 'error'); }
+                if (r.ok) { showAlert('Settings saved', 'success'); loadConfig(); }
+                else { showAlert('Failed to save settings', 'error'); }
+            } catch (err) { showAlert('Error saving settings', 'error'); }
         });
 
         // === Identity ===
@@ -583,9 +583,9 @@
                     method: 'POST', headers: {'Content-Type':'application/json'},
                     body: JSON.stringify({ content })
                 });
-                if (r.ok) showAlert('Identity가 저장되었습니다', 'success');
-                else showAlert('Identity 저장에 실패했습니다', 'error');
-            } catch (err) { showAlert('Identity 저장 중 오류가 발생했습니다', 'error'); }
+                if (r.ok) showAlert('Identity saved', 'success');
+                else showAlert('Failed to save identity', 'error');
+            } catch (err) { showAlert('Error saving identity', 'error'); }
         }
 
         // === Messages & Conversations ===
@@ -636,14 +636,14 @@
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">💬</div>
-                        <div class="empty-state-text">아직 대화가 없습니다</div>
-                        <div class="empty-state-sub">메시지가 수신되면 여기에 표시됩니다</div>
+                        <div class="empty-state-text">No conversations yet</div>
+                        <div class="empty-state-sub">Messages will appear here when received</div>
                     </div>`;
                 return;
             }
             container.innerHTML = conversations.map(conv => {
                 const last = conv.messages[conv.messages.length - 1];
-                const preview = last.direction === 'sent' ? '나: ' + last.text : last.text;
+                const preview = last.direction === 'sent' ? 'Me: ' + last.text : last.text;
                 const time = formatConvTime(last.timestamp);
                 const initial = getInitial(conv.sender_name);
                 const color = getAvatarColor(conv.sender_name);
@@ -689,7 +689,7 @@
             const container = document.getElementById('chat-messages');
 
             if (!conv || conv.messages.length === 0) {
-                container.innerHTML = '<div class="empty-state"><div class="empty-state-text">메시지가 없습니다</div></div>';
+                container.innerHTML = '<div class="empty-state"><div class="empty-state-text">No messages</div></div>';
                 return;
             }
 
@@ -737,9 +737,9 @@
                     await loadMessages();
                 } else {
                     const data = await r.json();
-                    showAlert(data.message || '메시지 전송에 실패했습니다', 'error');
+                    showAlert(data.message || 'Failed to send message', 'error');
                 }
-            } catch (err) { showAlert('메시지 전송 중 오류가 발생했습니다', 'error'); }
+            } catch (err) { showAlert('Error sending message', 'error'); }
             finally { btn.disabled = false; }
         }
 
@@ -750,7 +750,7 @@
             const selId = selectedConversation ? selectedConversation.sender_id : null;
 
             container.innerHTML = `
-                <div class="sidebar-conv-header">대화</div>
+                <div class="sidebar-conv-header">Conversations</div>
                 ${conversations.slice(0, 8).map(conv => {
                     const active = selId === conv.sender_id;
                     const last = conv.messages[conv.messages.length - 1];
@@ -773,8 +773,8 @@
 
         // === Auth ===
         const AUTH_STATUS_LABELS = {
-            'disconnected': '연결 안됨', 'waiting_code': '인증 코드 대기 중',
-            'waiting_password': '2FA 비밀번호 대기 중', 'authorized': '인증 완료', 'error': '오류'
+            'disconnected': 'Disconnected', 'waiting_code': 'Waiting for code',
+            'waiting_password': 'Waiting for 2FA password', 'authorized': 'Authorized', 'error': 'Error'
         };
         let _lastAuthStatus = null, _lastAuthError = null;
 
@@ -794,23 +794,23 @@
             sc.innerHTML = `<div class="auth-status-badge ${data.status}">${AUTH_STATUS_LABELS[data.status] || data.status}</div>`;
             ec.innerHTML = data.error ? `<div class="auth-error">${escapeHtml(data.error)}</div>` : '';
             if (data.status === 'waiting_code') {
-                fc.innerHTML = `<p style="margin-bottom:16px;color:#374151;">Telegram으로 전송된 인증 코드를 입력하세요.</p>
-                    <form id="auth-code-form"><div class="form-group"><label for="auth_code">인증 코드</label>
+                fc.innerHTML = `<p style="margin-bottom:16px;color:#374151;">Enter the verification code sent to your Telegram.</p>
+                    <form id="auth-code-form"><div class="form-group"><label for="auth_code">Verification Code</label>
                     <input type="text" id="auth_code" placeholder="12345" required autocomplete="one-time-code" inputmode="numeric" maxlength="10">
-                    </div><button type="submit" class="btn"><span>🔑</span><span>코드 제출</span></button></form>`;
+                    </div><button type="submit" class="btn"><span>🔑</span><span>Submit Code</span></button></form>`;
                 document.getElementById('auth-code-form').addEventListener('submit', submitCode);
             } else if (data.status === 'waiting_password') {
-                fc.innerHTML = `<p style="margin-bottom:16px;color:#374151;">2단계 인증(2FA) 비밀번호를 입력하세요.</p>
-                    <form id="auth-password-form"><div class="form-group"><label for="auth_password">2FA 비밀번호</label>
+                fc.innerHTML = `<p style="margin-bottom:16px;color:#374151;">Enter your two-factor authentication (2FA) password.</p>
+                    <form id="auth-password-form"><div class="form-group"><label for="auth_password">2FA Password</label>
                     <input type="password" id="auth_password" required></div>
-                    <button type="submit" class="btn"><span>🔑</span><span>비밀번호 제출</span></button></form>`;
+                    <button type="submit" class="btn"><span>🔑</span><span>Submit Password</span></button></form>`;
                 document.getElementById('auth-password-form').addEventListener('submit', submitPassword);
             } else if (data.status === 'authorized') {
-                fc.innerHTML = '<div class="auth-success"><div class="auth-success-icon">✅</div><div class="auth-success-text">Telegram 인증이 완료되었습니다</div></div>';
+                fc.innerHTML = '<div class="auth-success"><div class="auth-success-icon">✅</div><div class="auth-success-text">Telegram authentication complete</div></div>';
             } else if (data.status === 'disconnected') {
-                fc.innerHTML = '<p style="color:#6b7280;">봇이 아직 시작되지 않았습니다. 설정을 완료한 후 서버를 재시작하세요.</p>';
+                fc.innerHTML = '<p style="color:#6b7280;">Bot has not started yet. Complete the settings and restart the server.</p>';
             } else if (data.status === 'error') {
-                fc.innerHTML = '<p style="color:#991b1b;">인증 중 오류가 발생했습니다. 설정을 확인한 후 서버를 재시작하세요.</p>';
+                fc.innerHTML = '<p style="color:#991b1b;">An error occurred during authentication. Check your settings and restart the server.</p>';
             } else { fc.innerHTML = ''; }
         }
         async function submitCode(e) {
@@ -819,9 +819,9 @@
             if (!code) return;
             try {
                 const r = await fetch('/api/auth/code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code}) });
-                if (r.ok) { showAlert('인증 코드가 제출되었습니다','success'); setTimeout(loadAuthStatus,1500); }
-                else { const d = await r.json(); showAlert(d.message||'코드 제출에 실패했습니다','error'); }
-            } catch(err) { showAlert('코드 제출 중 오류가 발생했습니다','error'); }
+                if (r.ok) { showAlert('Verification code submitted','success'); setTimeout(loadAuthStatus,1500); }
+                else { const d = await r.json(); showAlert(d.message||'Failed to submit code','error'); }
+            } catch(err) { showAlert('Error submitting code','error'); }
         }
         async function submitPassword(e) {
             e.preventDefault();
@@ -829,9 +829,9 @@
             if (!password) return;
             try {
                 const r = await fetch('/api/auth/password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password}) });
-                if (r.ok) { showAlert('비밀번호가 제출되었습니다','success'); setTimeout(loadAuthStatus,1500); }
-                else { const d = await r.json(); showAlert(d.message||'비밀번호 제출에 실패했습니다','error'); }
-            } catch(err) { showAlert('비밀번호 제출 중 오류가 발생했습니다','error'); }
+                if (r.ok) { showAlert('Password submitted','success'); setTimeout(loadAuthStatus,1500); }
+                else { const d = await r.json(); showAlert(d.message||'Failed to submit password','error'); }
+            } catch(err) { showAlert('Error submitting password','error'); }
         }
 
         // === Input handlers ===
