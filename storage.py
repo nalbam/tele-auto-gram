@@ -1,7 +1,7 @@
 import json
 import os
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 MESSAGES_DIR = 'data/messages'
@@ -47,6 +47,14 @@ def _sender_filepath(sender_id: str) -> str:
     return os.path.join(MESSAGES_DIR, f'{sender_id}.json')
 
 
+def _parse_timestamp(ts: str) -> datetime:
+    """Parse ISO timestamp, ensuring timezone-aware (naive assumed UTC)"""
+    dt = datetime.fromisoformat(ts)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def _load_sender_messages(sender_id: str) -> list[dict[str, Any]]:
     """Load messages for a single sender with 7-day auto-prune"""
     filepath = _sender_filepath(sender_id)
@@ -56,10 +64,10 @@ def _load_sender_messages(sender_id: str) -> list[dict[str, Any]]:
     with open(filepath, 'r', encoding='utf-8') as f:
         messages = json.load(f)
 
-    cutoff_date = datetime.now() - timedelta(days=7)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
     filtered = [
         msg for msg in messages
-        if datetime.fromisoformat(msg['timestamp']) > cutoff_date
+        if _parse_timestamp(msg['timestamp']) > cutoff_date
     ]
 
     if len(filtered) < len(messages):
