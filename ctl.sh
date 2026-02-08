@@ -66,6 +66,9 @@ bg_stop() {
 
 bg_restart() {
     bg_stop
+    cd "$APP_DIR"
+    echo "Pulling latest changes..."
+    git pull
     sleep 1
     bg_start
 }
@@ -173,6 +176,9 @@ svc_stop() {
 }
 
 svc_restart() {
+    cd "$APP_DIR"
+    echo "Pulling latest changes..."
+    git pull
     if [ "$OS" = "Linux" ]; then
         sudo systemctl restart "$APP_NAME"
         echo "Service restarted"
