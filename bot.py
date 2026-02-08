@@ -339,6 +339,12 @@ async def start_bot() -> None:
             storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
         )
 
+        # Mark message as read (send read receipt to Telegram)
+        try:
+            await cl.send_read_acknowledge(event.chat_id, event.message)
+        except Exception as e:
+            logger.warning("Failed to send read acknowledge: %s", e)
+
         response_message = await _generate_response(
             sender.id, sender_name, message_text, msg_cfg
         )
