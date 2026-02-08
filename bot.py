@@ -386,9 +386,11 @@ async def start_bot() -> None:
             storage.get_messages_by_sender, sender.id
         )
 
-        # Fetch Telegram history if this is a new conversation (no local history)
-        if not existing_messages:
+        # Fetch Telegram history if not yet synced for this sender
+        history_synced = await asyncio.to_thread(storage.is_history_synced, sender.id)
+        if not history_synced:
             await _fetch_telegram_history(cl, sender.id, sender_name, event.message.id)
+            await asyncio.to_thread(storage.mark_history_synced, sender.id)
             existing_messages = await asyncio.to_thread(
                 storage.get_messages_by_sender, sender.id
             )

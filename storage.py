@@ -192,6 +192,25 @@ def save_sender_profile(sender_id: int | str, content: str) -> None:
             f.write(content)
 
 
+def _history_synced_path(sender_id: str) -> str:
+    """Return file path for a sender's history-synced marker"""
+    return os.path.join(MESSAGES_DIR, f'{sender_id}.synced')
+
+
+def is_history_synced(sender_id: int | str) -> bool:
+    """Check if Telegram history has been synced for a sender"""
+    ensure_messages_dir()
+    return os.path.exists(_history_synced_path(str(sender_id)))
+
+
+def mark_history_synced(sender_id: int | str) -> None:
+    """Mark that Telegram history has been synced for a sender"""
+    ensure_messages_dir()
+    filepath = _history_synced_path(str(sender_id))
+    with open(filepath, 'w') as f:
+        f.write(datetime.now(timezone.utc).isoformat())
+
+
 def import_messages(sender_id: int | str, messages: list[dict[str, Any]]) -> None:
     """Import a batch of messages for a sender (e.g., from Telegram history sync).
 
