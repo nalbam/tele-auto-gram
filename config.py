@@ -37,6 +37,8 @@ def load_config() -> dict[str, Any]:
         'OPENAI_MODEL': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
         'RESPONSE_DELAY_MIN': _safe_int(os.getenv('RESPONSE_DELAY_MIN'), 3),
         'RESPONSE_DELAY_MAX': _safe_int(os.getenv('RESPONSE_DELAY_MAX'), 10),
+        'READ_RECEIPT_DELAY_MIN': _safe_int(os.getenv('READ_RECEIPT_DELAY_MIN'), 3),
+        'READ_RECEIPT_DELAY_MAX': _safe_int(os.getenv('READ_RECEIPT_DELAY_MAX'), 10),
     }
 
     # Load from config file if exists

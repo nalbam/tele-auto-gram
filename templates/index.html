@@ -404,6 +404,15 @@
                             <small>Default response used when AI is not configured or fails</small>
                         </div>
                         <div class="form-group">
+                            <label>Read Receipt Delay (seconds)</label>
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <input type="number" id="read_receipt_delay_min" name="read_receipt_delay_min" min="0" step="1" style="width: 100px;" placeholder="3">
+                                <span style="color: #6b7280;">~</span>
+                                <input type="number" id="read_receipt_delay_max" name="read_receipt_delay_max" min="0" step="1" style="width: 100px;" placeholder="10">
+                            </div>
+                            <small>Random delay before sending read receipt (min ~ max seconds, default: 3 ~ 10)</small>
+                        </div>
+                        <div class="form-group">
                             <label>Response Delay (seconds)</label>
                             <div style="display: flex; gap: 12px; align-items: center;">
                                 <input type="number" id="response_delay_min" name="response_delay_min" min="0" step="1" style="width: 100px;" placeholder="3">
@@ -553,6 +562,8 @@
                 if (data.AUTO_RESPONSE_MESSAGE) document.getElementById('auto_response_message').value = data.AUTO_RESPONSE_MESSAGE;
                 if (data.OPENAI_API_KEY) document.getElementById('openai_api_key').value = data.OPENAI_API_KEY;
                 if (data.OPENAI_MODEL) document.getElementById('openai_model').value = data.OPENAI_MODEL;
+                document.getElementById('read_receipt_delay_min').value = data.READ_RECEIPT_DELAY_MIN ?? 3;
+                document.getElementById('read_receipt_delay_max').value = data.READ_RECEIPT_DELAY_MAX ?? 10;
                 document.getElementById('response_delay_min').value = data.RESPONSE_DELAY_MIN ?? 3;
                 document.getElementById('response_delay_max').value = data.RESPONSE_DELAY_MAX ?? 10;
                 loadIdentity();
@@ -581,6 +592,8 @@
                 AUTO_RESPONSE_MESSAGE: fd.get('auto_response_message'),
                 OPENAI_API_KEY: fd.get('openai_api_key'),
                 OPENAI_MODEL: fd.get('openai_model') || 'gpt-4o-mini',
+                READ_RECEIPT_DELAY_MIN: parseInt(fd.get('read_receipt_delay_min')) || 3,
+                READ_RECEIPT_DELAY_MAX: parseInt(fd.get('read_receipt_delay_max')) || 10,
                 RESPONSE_DELAY_MIN: parseInt(fd.get('response_delay_min')) || 3,
                 RESPONSE_DELAY_MAX: parseInt(fd.get('response_delay_max')) || 10
             };
