@@ -926,6 +926,99 @@ class TestRespondToSenderErrorHandling:
         mock_add.assert_called_once_with('sent', 'Me', 'AI reply', sender_id=123)
 
 
+class TestPhaseAStorageFailure:
+    """Tests for MEDIUM #1: Phase A storage failure should not block Phase B"""
+
+    @pytest.mark.asyncio
+    async def test_response_still_sent_when_storage_fails(self):
+        """Phase B response is still generated and sent when Phase A storage write fails"""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='Hello')
+
+        call_count = {'n': 0}
+
+        async def mock_to_thread(func, *args, **kwargs):
+            name = func.__name__ if hasattr(func, '__name__') else ''
+            if name == 'add_message' and args and args[0] == 'received':
+                raise OSError("disk full")
+            if func is config.load_config:
+                return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
+                        'RESPONSE_DELAY_MAX': '0', 'READ_RECEIPT_DELAY_MIN': '0',
+                        'READ_RECEIPT_DELAY_MAX': '0'}
+            elif func is storage.is_history_synced:
+                return True
+            elif func is storage.get_messages_by_sender:
+                return [{'direction': 'received', 'text': 'Hello'}]
+            elif func is storage.load_sender_profile:
+                return ''
+            elif func is config.load_identity:
+                return 'Be friendly'
+            return None
+
+        with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Hi!'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot.ai, 'is_trivial_message', return_value=True):
+            await bot._handle_new_message(cl, event)
+
+        # Response should still have been sent despite Phase A storage failure
+        event.respond.assert_called_once_with('Hi!')
+
+
+class TestShieldedSend:
+    """Tests for MEDIUM #2: asyncio.shield protects send from cancellation"""
+
+    @pytest.mark.asyncio
+    async def test_cancel_during_send_stores_message(self):
+        """When cancelled during shielded send, message is stored via sync fallback"""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='hello')
+
+        # Use barriers to synchronize: respond starts → test cancels → respond finishes
+        respond_started = asyncio.Event()
+
+        async def slow_respond(msg):
+            respond_started.set()
+            # Yield control — the outer task will be cancelled while we're here
+            await asyncio.sleep(100)
+
+        event.respond = slow_respond
+
+        call_count = {'n': 0}
+        returns = [
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
+            [{'direction': 'received', 'text': 'hello'}],
+            '',
+            'Be friendly',
+        ]
+
+        async def side_effect(func, *args, **kwargs):
+            idx = call_count['n']
+            call_count['n'] += 1
+            return returns[idx] if idx < len(returns) else None
+
+        with patch('bot.asyncio.to_thread', side_effect=side_effect), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='AI reply'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch('bot.storage.add_message') as mock_add:
+
+            task = asyncio.create_task(
+                bot._respond_to_sender(cl, event, 123, 'Test User')
+            )
+            # Wait until respond has started (inside asyncio.shield)
+            await respond_started.wait()
+
+            # Cancel the outer task while it's inside asyncio.shield(slow_respond)
+            task.cancel()
+            await asyncio.sleep(0)  # Let CancelledError propagate
+
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        # Sync fallback should have stored the message
+        mock_add.assert_called_with('sent', 'Me', 'AI reply', sender_id=123)
+
+
 class TestSyncMarkerOrder:
     """Tests for LOW #6: sync marker set after profile update attempt"""
 
