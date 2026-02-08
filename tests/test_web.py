@@ -396,3 +396,55 @@ class TestAuthInputLength:
                                data=json.dumps({'password': 'x' * 256}),
                                headers=_json_headers())
         assert resp.status_code == 200
+
+
+class TestRateLimiterCleanup:
+    """Tests for MEDIUM #5: rate limiter stale entry cleanup"""
+
+    def test_stale_entries_cleaned_up(self, monkeypatch):
+        """Stale rate limit entries are removed when threshold exceeded"""
+        import time
+        import web
+
+        monkeypatch.setattr('web._RATE_STORE_CLEANUP_THRESHOLD', 2)
+
+        # Insert stale entries directly
+        now = time.monotonic()
+        old_time = now - web.RATE_LIMIT_WINDOW - 10  # expired
+
+        with web._rate_lock:
+            web._rate_store.clear()
+            web._rate_store['api:1.1.1.1'] = [old_time]
+            web._rate_store['api:2.2.2.2'] = [old_time]
+            web._rate_store['api:3.3.3.3'] = [old_time]
+
+        # Trigger cleanup via a normal rate check (store size 3 > threshold 2)
+        assert web._check_rate_limit('api:4.4.4.4', 30) is True
+
+        with web._rate_lock:
+            # Stale entries should be cleaned up
+            assert 'api:1.1.1.1' not in web._rate_store
+            assert 'api:2.2.2.2' not in web._rate_store
+            assert 'api:3.3.3.3' not in web._rate_store
+            # New entry should exist
+            assert 'api:4.4.4.4' in web._rate_store
+
+    def test_no_cleanup_below_threshold(self, monkeypatch):
+        """No cleanup triggered when store size is below threshold"""
+        import time
+        import web
+
+        monkeypatch.setattr('web._RATE_STORE_CLEANUP_THRESHOLD', 100)
+
+        now = time.monotonic()
+        old_time = now - web.RATE_LIMIT_WINDOW - 10
+
+        with web._rate_lock:
+            web._rate_store.clear()
+            web._rate_store['api:old'] = [old_time]
+
+        web._check_rate_limit('api:new', 30)
+
+        with web._rate_lock:
+            # Old entry should still be present (below threshold)
+            assert 'api:old' in web._rate_store

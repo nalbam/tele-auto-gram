@@ -238,7 +238,7 @@ def mark_history_synced(sender_id: int | str) -> None:
 def import_messages(sender_id: int | str, messages: list[dict[str, Any]]) -> None:
     """Import a batch of messages for a sender (e.g., from Telegram history sync).
 
-    Messages are merged with existing ones and sorted by timestamp.
+    Messages are deduplicated by (timestamp, direction) and sorted by timestamp.
 
     Args:
         sender_id: Telegram user ID
@@ -249,7 +249,9 @@ def import_messages(sender_id: int | str, messages: list[dict[str, Any]]) -> Non
     sid = str(sender_id)
     with _get_lock(sid):
         existing = _load_sender_messages(sid)
-        existing.extend(messages)
+        existing_keys = {(m.get('timestamp'), m.get('direction')) for m in existing}
+        new_msgs = [m for m in messages if (m.get('timestamp'), m.get('direction')) not in existing_keys]
+        existing.extend(new_msgs)
         existing.sort(key=lambda msg: msg['timestamp'])
         _save_sender_messages(sid, existing)
 
@@ -267,7 +269,7 @@ def add_message(direction: str, sender: str, text: str, summary: str | None = No
     _migrate_legacy_messages()
 
     message = {
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'direction': direction,
         'sender': sender,
         'text': text,

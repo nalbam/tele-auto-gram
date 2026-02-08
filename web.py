@@ -24,6 +24,7 @@ if not WEB_TOKEN:
 AUTH_RATE_LIMIT = 5       # requests per minute for auth endpoints
 API_RATE_LIMIT = 30       # requests per minute for other API endpoints
 RATE_LIMIT_WINDOW = 60    # seconds
+_RATE_STORE_CLEANUP_THRESHOLD = 100  # trigger stale entry cleanup above this count
 
 _rate_store: dict[str, list[float]] = {}
 _rate_lock = threading.Lock()
@@ -36,6 +37,12 @@ def _check_rate_limit(key: str, limit: int) -> bool:
     now = time.monotonic()
     cutoff = now - RATE_LIMIT_WINDOW
     with _rate_lock:
+        # Periodic cleanup of stale entries to prevent unbounded growth
+        if len(_rate_store) > _RATE_STORE_CLEANUP_THRESHOLD:
+            stale = [k for k, v in _rate_store.items() if all(t <= cutoff for t in v)]
+            for k in stale:
+                del _rate_store[k]
+
         timestamps = _rate_store.get(key, [])
         timestamps = [t for t in timestamps if t > cutoff]
         if len(timestamps) >= limit:

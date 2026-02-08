@@ -135,8 +135,9 @@ async def _wait_for_input(loop: asyncio.AbstractEventLoop, event: threading.Even
 def send_message_to_user(user_id: int, text: str) -> Any:
     """Send a message to a Telegram user from the Flask thread.
 
-    Uses asyncio.run_coroutine_threadsafe to bridge Flask's sync context
-    to the bot's asyncio event loop running in a daemon thread.
+    Cancels any pending auto-response for the user before sending,
+    then uses asyncio.run_coroutine_threadsafe to bridge Flask's sync
+    context to the bot's asyncio event loop running in a daemon thread.
 
     Args:
         user_id: Telegram user ID (int)
@@ -152,9 +153,14 @@ def send_message_to_user(user_id: int, text: str) -> Any:
     if loop is None or cl is None:
         raise RuntimeError("Bot is not running")
 
-    future = asyncio.run_coroutine_threadsafe(
-        cl.send_message(user_id, text), loop
-    )
+    async def _cancel_and_send() -> Any:
+        task = _pending_responses.get(user_id)
+        if task is not None and not task.done():
+            task.cancel()
+            logger.info("Cancelled pending auto-response for %d (manual reply)", user_id)
+        return await cl.send_message(user_id, text)
+
+    future = asyncio.run_coroutine_threadsafe(_cancel_and_send(), loop)
     return future.result(timeout=SEND_MESSAGE_TIMEOUT)
 
 
@@ -358,11 +364,24 @@ async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sen
     logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
     await asyncio.sleep(delay)
 
-    await event.respond(response_message)
+    # Send response - CancelledError during send means uncertain delivery
+    try:
+        await event.respond(response_message)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.error("Failed to send response to %s: %s", sender_name, e)
+        return
 
-    await asyncio.to_thread(
-        storage.add_message, 'sent', 'Me', response_message, sender_id=sender_id
-    )
+    # Message confirmed sent - protect storage write from cancellation
+    try:
+        await asyncio.to_thread(
+            storage.add_message, 'sent', 'Me', response_message, sender_id=sender_id
+        )
+    except asyncio.CancelledError:
+        # Message was already sent - must store even though task is being cancelled
+        storage.add_message('sent', 'Me', response_message, sender_id=sender_id)
+        raise
 
     # Check if any pending received message (since last sent) is non-trivial.
     # In debounce scenario, event.message is only the LAST message — earlier
@@ -432,10 +451,10 @@ async def _handle_new_message(cl: TelegramClient, event: Any) -> None:
     history_synced = await asyncio.to_thread(storage.is_history_synced, sender.id)
     if not history_synced:
         imported = await _fetch_telegram_history(cl, sender.id, sender_name, event.message.id)
-        await asyncio.to_thread(storage.mark_history_synced, sender.id)
         if imported:
             await _update_sender_profile(sender.id, sender_name, msg_cfg,
                                          use_all_messages=True, messages=imported)
+        await asyncio.to_thread(storage.mark_history_synced, sender.id)
 
     # --- Phase B: Cancel previous + create new response task ---
 

@@ -151,7 +151,8 @@ async def generate_response(chat_messages: list[dict[str, str]],
             max_tokens=RESPONSE_MAX_TOKENS,
             temperature=RESPONSE_TEMPERATURE,
         )
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        return content.strip() if content else None
     except Exception as e:
         logger.error('Failed to generate AI response: %s', e)
         return None

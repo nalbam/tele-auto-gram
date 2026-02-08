@@ -243,3 +243,43 @@ def test_mark_history_synced_file_permissions():
     assert os.path.exists(filepath)
     mode = os.stat(filepath).st_mode & 0o777
     assert mode == 0o600
+
+
+def test_add_message_timestamp_has_utc_timezone():
+    """add_message stores UTC timezone-aware timestamp (HIGH #3 fix)"""
+    import storage
+    from datetime import datetime, timezone
+
+    msg = storage.add_message('received', 'Alice', 'hello', sender_id=100)
+    ts = msg['timestamp']
+    dt = datetime.fromisoformat(ts)
+    assert dt.tzinfo is not None
+    # Verify it's UTC (offset should be zero)
+    assert dt.utcoffset().total_seconds() == 0
+
+
+def test_import_messages_deduplicates():
+    """import_messages skips messages with matching (timestamp, direction) (LOW #6 fix)"""
+    import storage
+    from datetime import datetime, timezone
+
+    ts = datetime.now(timezone.utc).isoformat()
+    msg = {'timestamp': ts, 'direction': 'received', 'sender': 'Alice',
+           'text': 'hello', 'sender_id': 100}
+
+    # Import once
+    storage.import_messages(100, [msg])
+    messages = storage.get_messages_by_sender(100)
+    assert len(messages) == 1
+
+    # Import same message again — should be deduplicated
+    storage.import_messages(100, [msg])
+    messages = storage.get_messages_by_sender(100)
+    assert len(messages) == 1  # Still 1, not 2
+
+    # Import a different message (same timestamp but different direction)
+    msg2 = {'timestamp': ts, 'direction': 'sent', 'sender': 'Me',
+            'text': 'reply', 'sender_id': 100}
+    storage.import_messages(100, [msg2])
+    messages = storage.get_messages_by_sender(100)
+    assert len(messages) == 2

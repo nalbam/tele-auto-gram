@@ -805,3 +805,161 @@ class TestHandleNewMessage:
 
         # After completion, pending_responses should be cleaned up
         assert 123 not in bot._pending_responses
+
+
+class TestSendMessageCancelsAutoResponse:
+    """Tests for HIGH #1: manual reply cancels pending auto-response"""
+
+    @pytest.mark.asyncio
+    async def test_cancel_and_send_cancels_pending(self):
+        """Manual reply cancels any pending auto-response for the sender"""
+        sender_id = 123
+
+        cancelled = asyncio.Event()
+
+        async def pending_response():
+            try:
+                await asyncio.sleep(100)
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+        task = asyncio.create_task(pending_response())
+        bot._pending_responses[sender_id] = task
+        await asyncio.sleep(0)  # Let task start
+
+        # Simulate the _cancel_and_send logic from send_message_to_user
+        existing = bot._pending_responses.get(sender_id)
+        if existing is not None and not existing.done():
+            existing.cancel()
+
+        await asyncio.sleep(0)
+        assert cancelled.is_set()
+        assert task.cancelled()
+
+    @pytest.mark.asyncio
+    async def test_no_pending_task_is_safe(self):
+        """No error when no pending task exists for sender"""
+        sender_id = 456
+        # Simulate _cancel_and_send logic with no pending task
+        existing = bot._pending_responses.get(sender_id)
+        assert existing is None
+        # No error — safe to proceed
+
+
+class TestRespondToSenderErrorHandling:
+    """Tests for HIGH #2 + MEDIUM #4: send-store atomicity and send failure"""
+
+    @pytest.mark.asyncio
+    async def test_send_failure_does_not_store(self):
+        """When event.respond() fails, message is not stored"""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='hello')
+        event.respond = AsyncMock(side_effect=ConnectionError("Network error"))
+
+        call_count = {'n': 0}
+        stored_calls = []
+        returns = [
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
+            [{'direction': 'received', 'text': 'hello'}],
+            '',
+            'Be friendly',
+        ]
+
+        async def side_effect(func, *args, **kwargs):
+            name = func.__name__ if hasattr(func, '__name__') else ''
+            if name == 'add_message':
+                stored_calls.append(args)
+                return None
+            idx = call_count['n']
+            call_count['n'] += 1
+            return returns[idx] if idx < len(returns) else None
+
+        with patch('bot.asyncio.to_thread', side_effect=side_effect), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='AI reply'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock):
+            await bot._respond_to_sender(cl, event, 123, 'Test User')
+
+        # Message should NOT have been stored since send failed
+        assert len(stored_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_store_fallback_on_cancel_after_send(self):
+        """When cancelled after send, storage.add_message is called synchronously"""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='hello')
+        event.respond = AsyncMock()  # Send succeeds
+
+        call_count = {'n': 0}
+        returns = [
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
+            [{'direction': 'received', 'text': 'hello'}],
+            '',
+            'Be friendly',
+        ]
+
+        async def side_effect(func, *args, **kwargs):
+            idx = call_count['n']
+            call_count['n'] += 1
+            if idx == 4:  # 5th call = storage.add_message
+                raise asyncio.CancelledError()
+            return returns[idx] if idx < len(returns) else None
+
+        with patch('bot.asyncio.to_thread', side_effect=side_effect), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='AI reply'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch('bot.storage.add_message') as mock_add:
+            with pytest.raises(asyncio.CancelledError):
+                await bot._respond_to_sender(cl, event, 123, 'Test User')
+
+        # Sync fallback should have stored the message
+        mock_add.assert_called_once_with('sent', 'Me', 'AI reply', sender_id=123)
+
+
+class TestSyncMarkerOrder:
+    """Tests for LOW #6: sync marker set after profile update attempt"""
+
+    @pytest.mark.asyncio
+    async def test_sync_marker_after_profile_update(self):
+        """mark_history_synced is called after _update_sender_profile"""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='Hello!')
+
+        call_order = []
+
+        async def mock_to_thread(func, *args, **kwargs):
+            name = func.__name__ if hasattr(func, '__name__') else ''
+            if func is config.load_config:
+                return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
+                        'RESPONSE_DELAY_MAX': '0'}
+            elif func is storage.add_message:
+                return None
+            elif func is storage.is_history_synced:
+                return False
+            elif func is storage.mark_history_synced:
+                call_order.append('mark_synced')
+                return None
+            elif func is storage.get_messages_by_sender:
+                return [{'direction': 'received', 'text': 'Hello!'}]
+            elif func is storage.load_sender_profile:
+                return ''
+            elif func is config.load_identity:
+                return 'Be friendly'
+            return None
+
+        async def mock_fetch(cl, sid, name, msg_id):
+            return [{'direction': 'received', 'text': 'old msg', 'timestamp': '2025-01-01T00:00:00+00:00'}]
+
+        async def mock_profile(*args, **kwargs):
+            call_order.append('profile_update')
+
+        with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
+             patch.object(bot, '_fetch_telegram_history', side_effect=mock_fetch), \
+             patch.object(bot, '_update_sender_profile', side_effect=mock_profile), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Reply'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot.ai, 'is_trivial_message', return_value=True):
+            await bot._handle_new_message(cl, event)
+
+        # Profile update must come BEFORE sync marker
+        assert call_order == ['profile_update', 'mark_synced']

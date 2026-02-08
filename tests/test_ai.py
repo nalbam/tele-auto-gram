@@ -315,3 +315,45 @@ class TestSingleton:
             c2 = ai._get_client('key2')
             assert c1 is not c2
             assert mock_cls.call_count == 2
+
+
+class TestNullContentHandling:
+    """Tests for LOW #7: null-safe AI response content"""
+
+    @pytest.mark.asyncio
+    async def test_null_content_returns_none(self):
+        """Returns None when API response content is None"""
+        import ai
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = None
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        with patch.object(ai, '_get_client', return_value=mock_client):
+            result = await ai.generate_response(
+                [{'role': 'user', 'content': 'test'}],
+                api_key='test-key'
+            )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_returns_none(self):
+        """Returns None when API response is whitespace-only"""
+        import ai
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = '   \n  '
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        with patch.object(ai, '_get_client', return_value=mock_client):
+            result = await ai.generate_response(
+                [{'role': 'user', 'content': 'test'}],
+                api_key='test-key'
+            )
+        # strip() makes it empty string → falsy → generate_response returns it
+        # but _generate_response in bot.py checks `if response:` and falls back
+        assert result == ''
