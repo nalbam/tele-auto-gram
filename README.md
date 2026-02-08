@@ -115,6 +115,8 @@ tele-auto-gram/
 ├── docker-compose.yml   # Docker Compose 설정
 ├── templates/
 │   └── index.html      # 웹 UI 템플릿
+├── docs/
+│   └── USAGE_GUIDE.md  # 사용 가이드 및 문제 해결
 ├── .github/workflows/
 │   └── docker-build.yml # CI/CD 자동 이미지 빌드
 └── data/               # 데이터 저장 디렉토리 (자동 생성)
@@ -128,6 +130,7 @@ tele-auto-gram/
 
 Docker 이미지는 GitHub Actions를 통해 자동으로 빌드되며 GitHub Container Registry에 게시됩니다:
 
+- `ghcr.io/nalbam/tele-auto-gram:latest` - 최신 릴리스
 - `ghcr.io/nalbam/tele-auto-gram:1` - 메이저 버전 1.x.x
 - `ghcr.io/nalbam/tele-auto-gram:1.0` - 마이너 버전 1.0.x
 - `ghcr.io/nalbam/tele-auto-gram:1.0.0` - 특정 버전
