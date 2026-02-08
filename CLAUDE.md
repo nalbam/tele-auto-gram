@@ -15,6 +15,9 @@ pip install -r requirements.txt
 # Run (starts both web UI on port 5000 and bot)
 python main.py
 
+# Dev mode: auto-restart on file changes (*.py, *.html)
+watchmedo auto-restart --patterns="*.py;*.html" --recursive -- python main.py
+
 # Docker
 docker-compose up -d
 ```
