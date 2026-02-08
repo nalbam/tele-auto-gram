@@ -357,14 +357,25 @@ async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sen
         storage.add_message, 'sent', 'Me', response_message, sender_id=sender_id
     )
 
-    message_text = event.message.message
-    if not ai.is_trivial_message(message_text):
+    # Check if any pending received message (since last sent) is non-trivial.
+    # In debounce scenario, event.message is only the LAST message — earlier
+    # non-trivial messages would be missed if we only checked event.message.
+    has_nontrivial = False
+    for msg in reversed(existing_messages):
+        if msg.get('direction') == 'sent':
+            break
+        if msg.get('direction') == 'received' and not ai.is_trivial_message(msg.get('text')):
+            has_nontrivial = True
+            break
+
+    if has_nontrivial:
         all_messages = existing_messages + [
             {'direction': 'sent', 'text': response_message},
         ]
         await _update_sender_profile(sender_id, sender_name, msg_cfg,
                                      messages=all_messages, sender_profile=sender_profile)
 
+    message_text = event.message.message
     logger.debug("Received message from %s: %s", sender_name, message_text)
     logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
 

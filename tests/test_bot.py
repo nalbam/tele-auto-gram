@@ -207,6 +207,111 @@ class TestRespondToSender:
 
         mock_profile.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_profile_update_when_last_trivial_but_batch_has_nontrivial(self):
+        """Profile update runs if batch has non-trivial messages, even if last is trivial.
+
+        Debounce scenario: sender sends "I got promoted!" then "ㅋㅋ".
+        The event is for "ㅋㅋ" (trivial), but "I got promoted!" is non-trivial.
+        Profile update should still run.
+        """
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='ㅋㅋ')
+
+        call_count = {'n': 0}
+        returns = [
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
+            # Storage has both messages (stored in Phase A before this task)
+            [
+                {'direction': 'received', 'text': 'I just got promoted at work!'},
+                {'direction': 'received', 'text': 'ㅋㅋ'},
+            ],
+            '',  # sender_profile
+            'Be friendly',  # identity
+            None,  # add_message (sent)
+        ]
+
+        async def side_effect(func, *args, **kwargs):
+            idx = call_count['n']
+            call_count['n'] += 1
+            return returns[idx] if idx < len(returns) else None
+
+        with patch('bot.asyncio.to_thread', side_effect=side_effect), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Congrats!'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot, '_update_sender_profile', new_callable=AsyncMock) as mock_profile:
+            # Use REAL is_trivial_message — no patch
+            await bot._respond_to_sender(cl, event, 123, 'Test User')
+
+        # Profile update should run because "I just got promoted at work!" is non-trivial
+        mock_profile.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_profile_update_skipped_when_all_batch_trivial(self):
+        """Profile update skipped when all pending received messages are trivial."""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='ㅋㅋ')
+
+        call_count = {'n': 0}
+        returns = [
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
+            [
+                {'direction': 'received', 'text': 'ok'},
+                {'direction': 'received', 'text': 'ㅋㅋ'},
+            ],
+            '',
+            'Be friendly',
+            None,
+        ]
+
+        async def side_effect(func, *args, **kwargs):
+            idx = call_count['n']
+            call_count['n'] += 1
+            return returns[idx] if idx < len(returns) else None
+
+        with patch('bot.asyncio.to_thread', side_effect=side_effect), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='reply'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot, '_update_sender_profile', new_callable=AsyncMock) as mock_profile:
+            await bot._respond_to_sender(cl, event, 123, 'Test User')
+
+        mock_profile.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_profile_check_stops_at_last_sent(self):
+        """Trivial check only scans received messages after the last sent response."""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='ㅋㅋ')
+
+        call_count = {'n': 0}
+        returns = [
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
+            [
+                # Old non-trivial message BEFORE the last sent — should not count
+                {'direction': 'received', 'text': 'I work at Google!'},
+                {'direction': 'sent', 'text': 'Cool!'},
+                # New trivial message AFTER last sent
+                {'direction': 'received', 'text': 'ㅋㅋ'},
+            ],
+            '',
+            'Be friendly',
+            None,
+        ]
+
+        async def side_effect(func, *args, **kwargs):
+            idx = call_count['n']
+            call_count['n'] += 1
+            return returns[idx] if idx < len(returns) else None
+
+        with patch('bot.asyncio.to_thread', side_effect=side_effect), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='reply'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot, '_update_sender_profile', new_callable=AsyncMock) as mock_profile:
+            await bot._respond_to_sender(cl, event, 123, 'Test User')
+
+        # "I work at Google!" is before the last sent, so only "ㅋㅋ" counts → trivial → skip
+        mock_profile.assert_not_called()
+
 
 class TestDebounce:
     @pytest.mark.asyncio
