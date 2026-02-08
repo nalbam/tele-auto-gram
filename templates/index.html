@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Auto-Response Bot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 5px;
+            color: #888;
+            font-size: 0.85em;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .status {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .status.running {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.stopped {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.not-configured {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .message-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .message-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+
+        .message-item.received {
+            background: #f0f4ff;
+            border-left-color: #667eea;
+        }
+
+        .message-item.sent {
+            background: #f0fff4;
+            border-left-color: #48bb78;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        .message-sender {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .message-time {
+            color: #888;
+        }
+
+        .message-direction {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .message-direction.received {
+            background: #667eea;
+            color: white;
+        }
+
+        .message-direction.sent {
+            background: #48bb78;
+            color: white;
+        }
+
+        .message-text {
+            color: #555;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 Telegram Auto-Response Bot</h1>
+            <p>자동 응답 텔레그램 봇 관리 시스템</p>
+        </div>
+
+        <div id="alert" class="alert"></div>
+
+        <!-- Configuration Section -->
+        <div class="card" id="config-section">
+            <h2>⚙️ 설정</h2>
+            <div id="status-container"></div>
+            <form id="config-form">
+                <div class="form-group">
+                    <label for="api_id">API ID</label>
+                    <input type="text" id="api_id" name="api_id" required>
+                    <small>텔레그램 API ID (my.telegram.org에서 발급)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="api_hash">API Hash</label>
+                    <input type="text" id="api_hash" name="api_hash" required>
+                    <small>텔레그램 API Hash (my.telegram.org에서 발급)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">전화번호</label>
+                    <input type="text" id="phone" name="phone" required>
+                    <small>국가코드 포함 (예: +821012345678)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="notify_api_url">알림 API URL (선택사항)</label>
+                    <input type="url" id="notify_api_url" name="notify_api_url">
+                    <small>메시지 요약을 전송할 API 주소</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="auto_response_message">자동 응답 메시지</label>
+                    <textarea id="auto_response_message" name="auto_response_message" rows="3"></textarea>
+                    <small>메시지 수신 시 자동으로 보낼 응답</small>
+                </div>
+
+                <button type="submit" class="btn">💾 설정 저장</button>
+            </form>
+        </div>
+
+        <!-- Message History Section -->
+        <div class="card">
+            <h2>📨 최근 메시지 내역</h2>
+            <div id="message-list" class="message-list">
+                <div class="empty-state">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    <p>아직 메시지가 없습니다</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load configuration on page load
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const data = await response.json();
+                
+                if (data.API_ID) document.getElementById('api_id').value = data.API_ID;
+                if (data.API_HASH) document.getElementById('api_hash').value = data.API_HASH;
+                if (data.PHONE) document.getElementById('phone').value = data.PHONE;
+                if (data.NOTIFY_API_URL) document.getElementById('notify_api_url').value = data.NOTIFY_API_URL;
+                if (data.AUTO_RESPONSE_MESSAGE) document.getElementById('auto_response_message').value = data.AUTO_RESPONSE_MESSAGE;
+                
+                updateStatus(data.is_configured);
+            } catch (error) {
+                showAlert('설정을 불러오는데 실패했습니다', 'error');
+            }
+        }
+
+        // Load messages
+        async function loadMessages() {
+            try {
+                const response = await fetch('/api/messages');
+                const messages = await response.json();
+                
+                const messageList = document.getElementById('message-list');
+                
+                if (messages.length === 0) {
+                    messageList.innerHTML = `
+                        <div class="empty-state">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            </svg>
+                            <p>아직 메시지가 없습니다</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                messageList.innerHTML = messages.reverse().map(msg => {
+                    const date = new Date(msg.timestamp);
+                    const timeStr = date.toLocaleString('ko-KR');
+                    
+                    return `
+                        <div class="message-item ${msg.direction}">
+                            <div class="message-header">
+                                <div>
+                                    <span class="message-sender">${escapeHtml(msg.sender)}</span>
+                                    <span class="message-direction ${msg.direction}">${msg.direction === 'received' ? '수신' : '발신'}</span>
+                                </div>
+                                <span class="message-time">${timeStr}</span>
+                            </div>
+                            <div class="message-text">${escapeHtml(msg.text)}</div>
+                            ${msg.summary ? `<div class="message-text" style="margin-top: 8px; font-style: italic; opacity: 0.8;">요약: ${escapeHtml(msg.summary)}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
+        }
+
+        // Save configuration
+        document.getElementById('config-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const config = {
+                API_ID: formData.get('api_id'),
+                API_HASH: formData.get('api_hash'),
+                PHONE: formData.get('phone'),
+                NOTIFY_API_URL: formData.get('notify_api_url'),
+                AUTO_RESPONSE_MESSAGE: formData.get('auto_response_message')
+            };
+            
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                if (response.ok) {
+                    showAlert('설정이 저장되었습니다', 'success');
+                    loadConfig();
+                } else {
+                    showAlert('설정 저장에 실패했습니다', 'error');
+                }
+            } catch (error) {
+                showAlert('설정 저장 중 오류가 발생했습니다', 'error');
+            }
+        });
+
+        function updateStatus(isConfigured) {
+            const statusContainer = document.getElementById('status-container');
+            if (isConfigured) {
+                statusContainer.innerHTML = '<div class="status running">✓ 설정 완료</div>';
+            } else {
+                statusContainer.innerHTML = '<div class="status not-configured">⚠ 설정 필요</div>';
+            }
+        }
+
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert ${type} show`;
+            
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 5000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize
+        loadConfig();
+        loadMessages();
+        
+        // Reload messages every 10 seconds
+        setInterval(loadMessages, 10000);
+    </script>
+</body>
+</html>
