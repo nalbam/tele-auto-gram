@@ -1,4 +1,4 @@
-# 📱 Telegram Auto-Response Bot (tele-answer-gram)
+# 📱 Telegram Auto-Response Bot (tele-auto-gram)
 
 Telethon을 이용한 텔레그램 자동 응답 봇입니다.
 
@@ -22,8 +22,8 @@ Telethon을 이용한 텔레그램 자동 응답 봇입니다.
 
 1. 저장소 클론:
 ```bash
-git clone https://github.com/nalbam/tele-answer-gram.git
-cd tele-answer-gram
+git clone https://github.com/nalbam/tele-auto-gram.git
+cd tele-auto-gram
 ```
 
 2. 의존성 설치:
@@ -73,7 +73,7 @@ AUTO_RESPONSE_MESSAGE=잠시 후 응답드리겠습니다.
 ## 📁 프로젝트 구조
 
 ```
-tele-answer-gram/
+tele-auto-gram/
 ├── main.py              # 메인 실행 파일
 ├── bot.py               # 텔레그램 봇 로직
 ├── web.py               # 웹 UI 서버

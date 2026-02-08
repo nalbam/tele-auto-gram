@@ -14,8 +14,8 @@
 
 ```bash
 # 저장소 클론
-git clone https://github.com/nalbam/tele-answer-gram.git
-cd tele-answer-gram
+git clone https://github.com/nalbam/tele-auto-gram.git
+cd tele-auto-gram
 
 # 의존성 설치
 pip install -r requirements.txt
