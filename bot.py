@@ -234,27 +234,31 @@ async def _update_sender_profile(sender_id: int, sender_name: str, msg_cfg: dict
         logger.error("Profile update failed for %s: %s", sender_name, e)
 
 
-async def _fetch_telegram_history(cl: TelegramClient, sender_id: int, sender_name: str, current_msg_id: int) -> None:
-    """Fetch conversation history from Telegram for a new sender.
+async def _fetch_telegram_history(cl: TelegramClient, sender_id: int, sender_name: str, current_msg_id: int) -> list[dict[str, Any]]:
+    """Fetch conversation history from Telegram for a sender.
 
-    Called when no local message history exists. Fetches recent messages
-    before the current one and stores them locally for AI context.
+    Fetches recent messages before the current one and stores them locally.
+    Returns the raw imported messages (not subject to 7-day prune) so the
+    caller can use them for initial profile building.
 
     Args:
         cl: TelegramClient instance
         sender_id: Telegram user ID
         sender_name: display name of sender
         current_msg_id: ID of the current incoming message (excluded from fetch)
+
+    Returns:
+        List of imported message dicts (empty if nothing fetched)
     """
     try:
         me = await cl.get_me()
         messages = await cl.get_messages(sender_id, limit=HISTORY_FETCH_LIMIT, max_id=current_msg_id)
     except Exception as e:
         logger.warning("Failed to fetch Telegram history for %s: %s", sender_name, e)
-        return
+        return []
 
     if not messages:
-        return
+        return []
 
     history = []
     for msg in reversed(messages):  # oldest first
@@ -273,6 +277,8 @@ async def _fetch_telegram_history(cl: TelegramClient, sender_id: int, sender_nam
     if history:
         await asyncio.to_thread(storage.import_messages, sender_id, history)
         logger.info("Imported %d messages from Telegram history for %s", len(history), sender_name)
+
+    return history
 
 
 async def _authenticate(cl: TelegramClient, phone: str, loop: asyncio.AbstractEventLoop) -> None:
@@ -389,13 +395,15 @@ async def start_bot() -> None:
         # Fetch Telegram history if not yet synced for this sender
         history_synced = await asyncio.to_thread(storage.is_history_synced, sender.id)
         if not history_synced:
-            await _fetch_telegram_history(cl, sender.id, sender_name, event.message.id)
+            imported = await _fetch_telegram_history(cl, sender.id, sender_name, event.message.id)
             await asyncio.to_thread(storage.mark_history_synced, sender.id)
             existing_messages = await asyncio.to_thread(
                 storage.get_messages_by_sender, sender.id
             )
-            await _update_sender_profile(sender.id, sender_name, msg_cfg,
-                                         use_all_messages=True, messages=existing_messages)
+            # Build initial profile from raw imported messages (not subject to 7-day prune)
+            if imported:
+                await _update_sender_profile(sender.id, sender_name, msg_cfg,
+                                             use_all_messages=True, messages=imported)
 
         sender_profile = await asyncio.to_thread(storage.load_sender_profile, sender.id)
         system_prompt = await asyncio.to_thread(config.load_identity)
