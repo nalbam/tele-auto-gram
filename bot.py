@@ -138,8 +138,9 @@ async def start_bot():
 
         if openai_key:
             try:
-                # Get recent conversation with this sender
+                # Get recent conversation and sender profile
                 recent_messages = storage.get_messages_by_sender(sender.id)
+                sender_profile = storage.load_sender_profile(sender.id)
 
                 # Summarize conversation context
                 conversation_summary = ai.summarize_conversation(
@@ -147,11 +148,12 @@ async def start_bot():
                 )
                 summary = conversation_summary
 
-                # Generate AI response
+                # Generate AI response with profile context
                 system_prompt = config.load_identity()
                 response_message = ai.generate_response(
                     system_prompt, conversation_summary,
-                    sender_name, message_text
+                    sender_name, message_text,
+                    sender_profile=sender_profile
                 )
             except Exception as e:
                 logger.error("AI response generation failed: %s", e)
@@ -171,6 +173,20 @@ async def start_bot():
 
         # Store sent response
         storage.add_message('sent', 'Me', response_message, sender_id=sender.id)
+
+        # Update sender profile in background (non-blocking)
+        if openai_key:
+            try:
+                current_profile = storage.load_sender_profile(sender.id)
+                recent = storage.get_messages_by_sender(sender.id)
+                updated_profile = ai.update_sender_profile(
+                    current_profile, recent, sender_name
+                )
+                if updated_profile != current_profile:
+                    storage.save_sender_profile(sender.id, updated_profile)
+                    logger.debug("Updated profile for %s", sender_name)
+            except Exception as e:
+                logger.error("Profile update failed for %s: %s", sender_name, e)
 
         logger.debug("Received message from %s: %s", sender_name, message_text)
         logger.debug("Auto-response sent to %s: %s", sender_name, response_message)

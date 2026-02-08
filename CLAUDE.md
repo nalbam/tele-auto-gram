@@ -41,7 +41,7 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 
 **Auth flow**: `bot.py:start_bot` → `connect()` → `is_user_authorized()` → if not, `send_code_request()` → wait for code via web UI → `sign_in()` → optional 2FA password.
 
-**Message flow**: Telegram message → `bot.py:handle_new_message` → store received message (with `sender_id`) → generate AI response (or fallback) → 3-10s random delay → send auto-response → store sent message.
+**Message flow**: Telegram message → `bot.py:handle_new_message` → store received message (with `sender_id`) → load sender profile (`{sender_id}.md`) → generate AI response (with profile + conversation context) → random delay → send auto-response → store sent message → update sender profile with new info.
 
 **Manual reply flow**: Web UI → `POST /api/messages/send` → `bot.send_message_to_user()` (uses `asyncio.run_coroutine_threadsafe` to bridge Flask thread → bot asyncio loop) → Telethon `client.send_message()` → store sent message.
 
@@ -68,6 +68,7 @@ All data lives in `data/` directory (gitignored):
 - `data/config.json` - Saved configuration from web UI
 - `data/IDENTITY.md` - AI persona/system prompt (auto-created if missing, editable via web UI)
 - `data/messages/{sender_id}.json` - Per-sender message history (auto-pruned after 7 days)
+- `data/messages/{sender_id}.md` - Per-sender profile (preferred name, language, key facts — auto-updated by AI)
 - `data/bot_session.session` - Telethon session file (persisted in data/ for Docker volume support)
 - `*.session` / `*.session-journal` - Telethon session files (gitignored, never commit)
 

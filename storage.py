@@ -134,6 +134,29 @@ def get_messages_by_sender(sender_id, limit=20):
     return messages[-limit:]
 
 
+def _sender_profile_path(sender_id):
+    """Return file path for a sender's profile"""
+    return os.path.join(MESSAGES_DIR, f'{sender_id}.md')
+
+
+def load_sender_profile(sender_id):
+    """Load sender profile markdown. Returns empty string if not exists."""
+    ensure_messages_dir()
+    filepath = _sender_profile_path(str(sender_id))
+    if not os.path.exists(filepath):
+        return ''
+    with open(filepath, 'r', encoding='utf-8') as f:
+        return f.read()
+
+
+def save_sender_profile(sender_id, content):
+    """Save sender profile markdown."""
+    ensure_messages_dir()
+    filepath = _sender_profile_path(str(sender_id))
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+
 def add_message(direction, sender, text, summary=None, sender_id=None):
     """Add a message to storage
 
