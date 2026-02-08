@@ -4,21 +4,32 @@ Telegram auto-response bot built with Telethon. Manage configuration and authent
 
 ## Features
 
-- **Auto Response**: Sends an automatic reply 3–10 seconds after receiving a private message
+- **Auto Response**: Sends an automatic reply after a configurable delay upon receiving a private message
+- **AI Multi-turn Conversation**: Context-aware responses using OpenAI with up to 20 messages of conversation history
+- **Sender Profile**: Automatically builds and maintains per-sender profiles (preferred name, language, key facts)
+- **Message Debounce**: Consecutive messages from the same sender are merged into a single AI response
+- **Read Receipt Delay**: Configurable delay before marking messages as read for natural appearance
 - **Manual Reply**: Select a conversation in the web UI and send messages directly
-- **AI Response**: Intelligent auto-responses powered by the OpenAI API (optional)
 - **Web-based Auth**: Enter Telegram verification codes and 2FA passwords from your browser
 - **Message History**: Stores sent/received messages locally as JSON (last 7 days, per-sender files)
-- **Web UI**: Modern management interface (settings, auth, conversations, manual reply)
+- **Web UI**: Modern management interface (settings, auth, conversations, manual reply, identity editor)
 - **Docker Support**: Full web-based authentication for non-interactive environments
 
 ## Getting Started
 
 ### Prerequisites
 
-- Python 3.9+ or Docker
+- Python 3.12+ or Docker
 - A Telegram account
 - API ID and API Hash (from [my.telegram.org](https://my.telegram.org))
+
+### Getting Telegram API Keys
+
+1. Go to [https://my.telegram.org](https://my.telegram.org)
+2. Log in with your phone number
+3. Click "API development tools"
+4. Fill in app details (App title, Short name)
+5. Save your **API ID** and **API Hash**
 
 ### Option 1: Docker (Recommended)
 
@@ -124,6 +135,8 @@ OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
 RESPONSE_DELAY_MIN=3
 RESPONSE_DELAY_MAX=10
+READ_RECEIPT_DELAY_MIN=3
+READ_RECEIPT_DELAY_MAX=10
 LOG_LEVEL=INFO
 HOST=0.0.0.0
 PORT=5000
@@ -131,12 +144,21 @@ WEB_TOKEN=
 SECRET_KEY=
 ```
 
+### Configuration Priority
+
+Settings are resolved in this order (highest priority first):
+
+1. `data/config.json` — saved from Web UI
+2. `.env.local` — local overrides (gitignored)
+3. Environment variables
+4. `.env` — default values
+
 ## Usage
 
 1. **Configure**: Enter API ID, API Hash, and phone number in the Settings tab
 2. **Restart server**: Restart after saving settings
 3. **Authenticate**: Enter the Telegram verification code in the Auth tab (and 2FA password if enabled)
-4. **Auto response**: After authentication, incoming private messages get an automatic reply after 3–10 seconds
+4. **Auto response**: After authentication, incoming private messages get an automatic reply
 5. **View messages**: Check recent message history in the Conversations tab
 6. **Manual reply**: Click a conversation in the sidebar, then type and send a message
 
@@ -159,16 +181,19 @@ tele-auto-gram/
 ├── templates/
 │   └── index.html       # Web UI template
 ├── docs/
-│   └── USAGE_GUIDE.md   # Usage guide and troubleshooting
+│   ├── ARCHITECTURE.md  # System architecture documentation
+│   └── DEVELOPMENT.md   # Development guide
+├── tests/               # Test suite (pytest)
 ├── .github/workflows/
 │   └── docker-build.yml # CI/CD auto image build
 └── data/                # Data directory (auto-created, Docker volume mount target)
     ├── config.json      # Configuration file
     ├── IDENTITY.md      # AI persona/identity prompt
     ├── messages/        # Per-sender message history
-    │   ├── {sender_id}.json  # Message history (auto-pruned after 7 days)
-    │   └── {sender_id}.md    # Sender profile (auto-updated by AI)
-    └── bot_session.session   # Telethon session file
+    │   ├── {sender_id}.json    # Message history (auto-pruned after 7 days)
+    │   ├── {sender_id}.md      # Sender profile (auto-updated by AI)
+    │   └── {sender_id}.synced  # Telegram history sync marker
+    └── bot_session.session     # Telethon session file
 ```
 
 ## Docker Images
@@ -205,28 +230,97 @@ Messages are stored in per-sender files under `data/messages/`:
     "direction": "received",
     "sender": "User Name",
     "text": "Message content",
-    "summary": "Summary",
+    "summary": null,
     "sender_id": 123456789
   }
 ]
 ```
 
-The `sender_id` is the Telegram user ID used for manual replies.
+Each sender has up to three associated files:
 
-Messages older than 7 days are automatically pruned.
+| File | Description |
+|------|-------------|
+| `{sender_id}.json` | Message history (auto-pruned after 7 days) |
+| `{sender_id}.md` | Sender profile — preferred name, language, key facts (auto-updated by AI) |
+| `{sender_id}.synced` | Marker indicating Telegram history has been fetched for this sender |
+
+Messages older than 7 days are automatically pruned on access.
 
 ## Security
 
-- Web UI binds to `0.0.0.0` by default for Docker compatibility. Set `HOST=127.0.0.1` in `.env` to restrict to localhost
-- Set `WEB_TOKEN` environment variable to require Bearer token authentication for all `/api/*` endpoints
+- **Token Authentication**: Set `WEB_TOKEN` to require Bearer token for all `/api/*` endpoints
+- **Rate Limiting**: In-memory per-IP rate limiter (auth: 5/min, API: 30/min)
+- **Atomic File Writes**: Config and storage files written via temp file + `os.replace` to prevent corruption
+- **Input Validation**: API ID numeric check, delay range validation (0–3600), auth input length limits
+- **Content-Type Enforcement**: POST requests to `/api/*` require `application/json`
+- **Sensitive Data Masking**: API Hash and OpenAI key masked in web UI responses
+- **XSS Prevention**: User-supplied values escaped in frontend rendering
+- **File Permissions**: Data files created with `0o600` (owner read/write only)
+- Web UI binds to `0.0.0.0` by default for Docker compatibility. Set `HOST=127.0.0.1` to restrict to localhost
 - Never share your API keys or session files
-- Sensitive fields (API Hash, OpenAI key) are masked in the web UI
 - Sensitive files are included in `.gitignore`
+
+## Troubleshooting
+
+### "Not Configured" status keeps showing
+- Verify that API ID, API Hash, and phone number are all entered
+- Make sure you clicked "Save Settings" in the web UI
+
+### Not receiving verification code
+- Check that your phone number includes the country code (e.g. +82)
+- Verify you are logged into the Telegram app
+
+### Auto response not working
+- Check that the bot is running in the terminal ("Bot is running..." message should appear)
+- Verify authentication is complete in the Auth tab
+
+### Web UI won't open
+- Check if port 5000 is already in use: `lsof -i :5000`
+- Check if firewall is blocking localhost access
+
+### Stopping the Bot
+- **Foreground**: Press `Ctrl + C`
+- **Background**: `./ctl.sh stop`
+- **Service**: `./ctl.sh svc-stop`
+
+## Contributing
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/nalbam/tele-auto-gram.git
+cd tele-auto-gram
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+# venv\Scripts\activate   # Windows
+
+# Install dependencies (including dev tools)
+pip install -r requirements-dev.txt
+
+# Copy environment config
+cp .env.example .env.local
+# Edit .env.local with your credentials
+```
+
+### Running Tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+### Pull Request Guidelines
+
+1. Create a feature branch from `main`
+2. Make small, focused commits with descriptive messages
+3. Add tests for new functionality
+4. Ensure all existing tests pass
+5. Open a PR with a clear description of changes
+
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed development instructions and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system architecture.
 
 ## License
 
 MIT License
-
-## Contributing
-
-Issues and pull requests are always welcome!
