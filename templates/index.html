@@ -450,6 +450,63 @@
             color: #92400e;
         }
 
+        /* Auth View Styles */
+        .auth-status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .auth-status-badge.authorized {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .auth-status-badge.waiting_code,
+        .auth-status-badge.waiting_password {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .auth-status-badge.disconnected {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .auth-status-badge.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .auth-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .auth-success {
+            text-align: center;
+            padding: 40px 20px;
+            color: #065f46;
+        }
+
+        .auth-success-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .auth-success-text {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
         /* View Toggle */
         .view-container {
             display: none;
@@ -503,6 +560,10 @@
                 <span class="nav-icon">💬</span>
                 <span>대화 목록</span>
             </button>
+            <button class="nav-button" onclick="switchView('auth')" id="nav-auth">
+                <span class="nav-icon">🔐</span>
+                <span>인증</span>
+            </button>
             <button class="nav-button" onclick="switchView('settings')" id="nav-settings">
                 <span class="nav-icon">⚙️</span>
                 <span>설정</span>
@@ -543,6 +604,19 @@
                             <div class="empty-text">아직 메시지가 없습니다</div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Auth View -->
+            <div class="view-container" id="view-auth">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-icon">🔐</span>
+                        <h2 class="card-title">Telegram 인증</h2>
+                    </div>
+                    <div id="auth-status-container"></div>
+                    <div id="auth-error-container"></div>
+                    <div id="auth-form-container"></div>
                 </div>
             </div>
 
@@ -623,6 +697,12 @@
             if (viewName === 'conversations') {
                 document.getElementById('nav-conversations').classList.add('active');
                 document.getElementById('page-title').textContent = '대화 목록';
+            } else if (viewName === 'auth') {
+                document.getElementById('nav-auth').classList.add('active');
+                document.getElementById('page-title').textContent = '인증';
+                _lastAuthStatus = null;
+                _lastAuthError = null;
+                loadAuthStatus();
             } else if (viewName === 'settings') {
                 document.getElementById('nav-settings').classList.add('active');
                 document.getElementById('page-title').textContent = '설정';
@@ -797,12 +877,163 @@
             return div.innerHTML;
         }
 
+        // Auth status management
+        const AUTH_STATUS_LABELS = {
+            'disconnected': '연결 안됨',
+            'waiting_code': '인증 코드 대기 중',
+            'waiting_password': '2FA 비밀번호 대기 중',
+            'authorized': '인증 완료',
+            'error': '오류'
+        };
+
+        let _lastAuthStatus = null;
+        let _lastAuthError = null;
+
+        async function loadAuthStatus() {
+            try {
+                const response = await fetch('/api/auth/status');
+                const data = await response.json();
+
+                // Only re-render when status or error actually changed
+                if (data.status === _lastAuthStatus && data.error === _lastAuthError) {
+                    return;
+                }
+                _lastAuthStatus = data.status;
+                _lastAuthError = data.error;
+
+                renderAuthView(data);
+            } catch (error) {
+                console.error('Error loading auth status:', error);
+            }
+        }
+
+        function renderAuthView(data) {
+            const statusContainer = document.getElementById('auth-status-container');
+            const errorContainer = document.getElementById('auth-error-container');
+            const formContainer = document.getElementById('auth-form-container');
+
+            const statusLabel = AUTH_STATUS_LABELS[data.status] || data.status;
+            statusContainer.innerHTML = `<div class="auth-status-badge ${data.status}">${statusLabel}</div>`;
+
+            if (data.error) {
+                errorContainer.innerHTML = `<div class="auth-error">${escapeHtml(data.error)}</div>`;
+            } else {
+                errorContainer.innerHTML = '';
+            }
+
+            if (data.status === 'waiting_code') {
+                formContainer.innerHTML = `
+                    <p style="margin-bottom: 16px; color: #374151;">Telegram으로 전송된 인증 코드를 입력하세요.</p>
+                    <form id="auth-code-form">
+                        <div class="form-group">
+                            <label for="auth_code">인증 코드</label>
+                            <input type="text" id="auth_code" name="auth_code" placeholder="12345" required
+                                   autocomplete="one-time-code" inputmode="numeric" maxlength="10">
+                        </div>
+                        <button type="submit" class="btn">
+                            <span>🔑</span>
+                            <span>코드 제출</span>
+                        </button>
+                    </form>
+                `;
+                document.getElementById('auth-code-form').addEventListener('submit', submitCode);
+            } else if (data.status === 'waiting_password') {
+                formContainer.innerHTML = `
+                    <p style="margin-bottom: 16px; color: #374151;">2단계 인증(2FA) 비밀번호를 입력하세요.</p>
+                    <form id="auth-password-form">
+                        <div class="form-group">
+                            <label for="auth_password">2FA 비밀번호</label>
+                            <input type="password" id="auth_password" name="auth_password" required>
+                        </div>
+                        <button type="submit" class="btn">
+                            <span>🔑</span>
+                            <span>비밀번호 제출</span>
+                        </button>
+                    </form>
+                `;
+                document.getElementById('auth-password-form').addEventListener('submit', submitPassword);
+            } else if (data.status === 'authorized') {
+                formContainer.innerHTML = `
+                    <div class="auth-success">
+                        <div class="auth-success-icon">✅</div>
+                        <div class="auth-success-text">Telegram 인증이 완료되었습니다</div>
+                    </div>
+                `;
+            } else if (data.status === 'disconnected') {
+                formContainer.innerHTML = `
+                    <p style="color: #6b7280;">봇이 아직 시작되지 않았습니다. 설정을 완료한 후 서버를 재시작하세요.</p>
+                `;
+            } else if (data.status === 'error') {
+                formContainer.innerHTML = `
+                    <p style="color: #991b1b;">인증 중 오류가 발생했습니다. 설정을 확인한 후 서버를 재시작하세요.</p>
+                `;
+            } else {
+                formContainer.innerHTML = '';
+            }
+        }
+
+        async function submitCode(e) {
+            e.preventDefault();
+            const code = document.getElementById('auth_code').value.trim();
+            if (!code) return;
+
+            try {
+                const response = await fetch('/api/auth/code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                if (response.ok) {
+                    showAlert('인증 코드가 제출되었습니다', 'success');
+                    // Wait briefly for bot to process
+                    setTimeout(loadAuthStatus, 1500);
+                } else {
+                    const data = await response.json();
+                    showAlert(data.message || '코드 제출에 실패했습니다', 'error');
+                }
+            } catch (error) {
+                showAlert('코드 제출 중 오류가 발생했습니다', 'error');
+            }
+        }
+
+        async function submitPassword(e) {
+            e.preventDefault();
+            const password = document.getElementById('auth_password').value;
+            if (!password) return;
+
+            try {
+                const response = await fetch('/api/auth/password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                if (response.ok) {
+                    showAlert('비밀번호가 제출되었습니다', 'success');
+                    // Wait briefly for bot to process
+                    setTimeout(loadAuthStatus, 1500);
+                } else {
+                    const data = await response.json();
+                    showAlert(data.message || '비밀번호 제출에 실패했습니다', 'error');
+                }
+            } catch (error) {
+                showAlert('비밀번호 제출 중 오류가 발생했습니다', 'error');
+            }
+        }
+
         // Initialize
         loadConfig();
         loadMessages();
-        
+
         // Reload messages every 10 seconds
         setInterval(loadMessages, 10000);
+
+        // Poll auth status every 3 seconds
+        setInterval(function() {
+            const authView = document.getElementById('view-auth');
+            if (authView && authView.classList.contains('active')) {
+                loadAuthStatus();
+            }
+        }, 3000);
     </script>
 </body>
 </html>

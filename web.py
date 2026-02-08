@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import config
 import storage
+import bot
 
 app = Flask(__name__)
 
@@ -8,15 +9,15 @@ MASKED_FIELDS = ('API_HASH', 'OPENAI_API_KEY')
 
 
 def mask_value(value):
-    """Mask a sensitive value, showing first 4 and last 4 characters"""
-    if not value or len(value) <= 8:
-        return '*' * len(value) if value else ''
-    return value[:4] + '****' + value[-4:]
+    """Mask a sensitive value with 16 asterisks"""
+    if not value:
+        return ''
+    return '*' * 16
 
 
 def is_masked(value):
-    """Check if a value contains masking asterisks"""
-    return bool(value) and '****' in value
+    """Check if a value is a masked placeholder"""
+    return value == '*' * 16
 
 
 @app.route('/')
@@ -60,6 +61,34 @@ def get_messages():
     """Get message history"""
     messages = storage.load_messages()
     return jsonify(messages)
+
+
+@app.route('/api/auth/status', methods=['GET'])
+def get_auth_status():
+    """Get current authentication status"""
+    return jsonify(bot.auth_state)
+
+
+@app.route('/api/auth/code', methods=['POST'])
+def submit_auth_code():
+    """Submit authentication code"""
+    data = request.get_json()
+    code = data.get('code', '').strip()
+    if not code:
+        return jsonify({'status': 'error', 'message': 'Code is required'}), 400
+    bot.submit_auth_code(code)
+    return jsonify({'status': 'success'})
+
+
+@app.route('/api/auth/password', methods=['POST'])
+def submit_auth_password():
+    """Submit 2FA password"""
+    data = request.get_json()
+    password = data.get('password', '')
+    if not password:
+        return jsonify({'status': 'error', 'message': 'Password is required'}), 400
+    bot.submit_auth_password(password)
+    return jsonify({'status': 'success'})
 
 def run_web_ui(host='127.0.0.1', port=5000):
     """Run the web UI server"""
