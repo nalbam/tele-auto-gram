@@ -364,14 +364,20 @@ async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sen
     logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
     await asyncio.sleep(delay)
 
-    # Send response - CancelledError during send means uncertain delivery
+    # Send response - shield prevents cancellation during network send
     try:
-        await event.respond(response_message)
+        await asyncio.shield(event.respond(response_message))
     except asyncio.CancelledError:
+        # Shield caught cancellation but event.respond() continues in background.
+        # Message is likely delivered — store it before re-raising.
+        logger.info("Cancelled during send to %s, storing message as sent", sender_name)
+        storage.add_message('sent', 'Me', response_message, sender_id=sender_id)
         raise
     except Exception as e:
         logger.error("Failed to send response to %s: %s", sender_name, e)
         return
+
+    logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
 
     # Message confirmed sent - protect storage write from cancellation
     try:
@@ -400,10 +406,6 @@ async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sen
         ]
         await _update_sender_profile(sender_id, sender_name, msg_cfg,
                                      messages=all_messages, sender_profile=sender_profile)
-
-    message_text = event.message.message
-    logger.debug("Received message from %s: %s", sender_name, message_text)
-    logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
 
 
 async def _handle_new_message(cl: TelegramClient, event: Any) -> None:
@@ -443,10 +445,13 @@ async def _handle_new_message(cl: TelegramClient, event: Any) -> None:
 
     msg_cfg = await asyncio.to_thread(config.load_config)
 
-    # Store received message immediately
-    await asyncio.to_thread(
-        storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
-    )
+    # Store received message immediately (non-fatal: continue to Phase B on failure)
+    try:
+        await asyncio.to_thread(
+            storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
+        )
+    except Exception as e:
+        logger.error("Failed to store received message from %s: %s", sender_name, e)
 
     # Read receipt (fire & forget)
     asyncio.create_task(_delayed_read_receipt(cl, event, msg_cfg))

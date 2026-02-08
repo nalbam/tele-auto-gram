@@ -60,7 +60,7 @@ Phase A — Non-cancellable (always completes):
   1. Private message filter — ignore non-private, early return if text is empty (media-only)
   2. Resolve sender name from Telegram User object
   3. Load config (single read)
-  4. Store received message immediately
+  4. Store received message immediately (non-fatal: continues on failure)
   5. Send read receipt (fire & forget via _delayed_read_receipt with configurable delay)
   6. If not yet synced → fetch Telegram history → import → build initial sender profile
      └─ Sync marker: data/messages/{sender_id}.synced
@@ -73,12 +73,12 @@ Phase B — Cancellable (debounce):
         └─ ai.build_chat_messages: received→user, sent→assistant, consecutive same-role merged
      c. Generate AI response (single OpenAI call with full conversation context)
         └─ Fallback to AUTO_RESPONSE_MESSAGE if no API key or on failure
-     d. Random delay (RESPONSE_DELAY_MIN ~ MAX) → send response → store sent message
+     d. Random delay (RESPONSE_DELAY_MIN ~ MAX) → send response (asyncio.shield) → store sent message
      e. Conditional profile update — skip if ALL pending received messages are trivial
         └─ Trivial: empty, <3 chars, emoji-only, common filler words (ok, ㅋㅋ, etc.)
 ```
 
-I/O budget per message: storage read 1x, OpenAI call 1~2x (response + conditional profile update).
+I/O budget per message: config read 2x (Phase A + Phase B), storage read 3x (messages + profile + identity), storage write 2x (received + sent), OpenAI call 1~2x (response + conditional profile update).
 
 **Manual reply flow**: Web UI → `POST /api/messages/send` → `bot.send_message_to_user()` (uses `asyncio.run_coroutine_threadsafe` to bridge Flask thread → bot asyncio loop) → Telethon `client.send_message()` → store sent message.
 
