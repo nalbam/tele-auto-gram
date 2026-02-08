@@ -696,6 +696,16 @@ class TestHandleNewMessage:
         event.get_sender.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_ignores_none_sender(self):
+        """Skips messages when get_sender() returns None"""
+        cl = _make_client()
+        event = _make_event()
+        event.get_sender = AsyncMock(return_value=None)
+
+        await bot._handle_new_message(cl, event)
+        event.respond.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_ignores_empty_message(self):
         """Skips messages with empty text (media-only)"""
         cl = _make_client()

@@ -122,6 +122,18 @@ class TestMessages:
                                headers=_json_headers())
         assert resp.status_code == 200
 
+    def test_send_message_storage_failure_still_succeeds(self, app_client, monkeypatch):
+        """POST /api/messages/send returns 200 even if storage write fails"""
+        monkeypatch.setattr('bot.get_auth_state', lambda: {'status': 'authorized'})
+        monkeypatch.setattr('bot.send_message_to_user', lambda uid, txt: None)
+        monkeypatch.setattr('storage.add_message',
+                            MagicMock(side_effect=OSError("disk full")))
+
+        resp = app_client.post('/api/messages/send',
+                               data=json.dumps({'user_id': 123, 'text': 'hi'}),
+                               headers=_json_headers())
+        assert resp.status_code == 200
+
     def test_send_message_not_authorized(self, app_client, monkeypatch):
         """POST /api/messages/send fails when bot not authorized"""
         monkeypatch.setattr('bot.get_auth_state', lambda: {'status': 'disconnected'})

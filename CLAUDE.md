@@ -26,7 +26,7 @@ watchmedo auto-restart --patterns="*.py;*.html" --recursive -- python main.py
 # Docker
 docker-compose up -d
 
-# Tests (148 tests across 6 files)
+# Tests (163 tests across 6 files)
 python -m pytest tests/ -v
 ```
 

@@ -294,6 +294,46 @@ class TestUpdateSenderProfile:
         assert 'msg0' not in system_content
 
 
+class TestUpdateSenderProfileNullContent:
+    """Tests for MEDIUM #1: null-safe content in update_sender_profile"""
+
+    @pytest.mark.asyncio
+    async def test_null_content_returns_current_profile(self):
+        """Returns current profile when API response content is None"""
+        import ai
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = None
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        with patch.object(ai, '_get_client', return_value=mock_client):
+            result = await ai.update_sender_profile(
+                'keep this profile',
+                [{'direction': 'received', 'text': 'hello'}],
+                'Alice', api_key='test-key'
+            )
+        assert result == 'keep this profile'
+
+    @pytest.mark.asyncio
+    async def test_empty_content_returns_current_profile(self):
+        """Returns current profile when API response content is empty"""
+        import ai
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(
+            return_value=_mock_completion('   ')
+        )
+
+        with patch.object(ai, '_get_client', return_value=mock_client):
+            result = await ai.update_sender_profile(
+                'keep this',
+                [{'direction': 'received', 'text': 'hello'}],
+                'Alice', api_key='test-key'
+            )
+        assert result == 'keep this'
+
+
 class TestSingleton:
     def test_client_reuse(self):
         """_get_client reuses client for same API key"""

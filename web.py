@@ -224,7 +224,11 @@ def send_message():
         logger.error("Error sending message: %s", e)
         return jsonify({'status': 'error', 'message': 'Failed to send message'}), 500
 
-    storage.add_message('sent', 'Me', text, sender_id=user_id)
+    try:
+        storage.add_message('sent', 'Me', text, sender_id=user_id)
+    except Exception as e:
+        logger.error("Failed to store sent message for user %d: %s", user_id, e)
+
     return jsonify({'status': 'success'})
 
 

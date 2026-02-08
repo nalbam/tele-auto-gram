@@ -422,6 +422,10 @@ async def _handle_new_message(cl: TelegramClient, event: Any) -> None:
 
     sender = await event.get_sender()
 
+    if sender is None:
+        logger.warning("Could not resolve sender for event, skipping")
+        return
+
     if isinstance(sender, User):
         sender_name = sender.first_name or ''
         if sender.last_name:

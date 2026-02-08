@@ -228,7 +228,8 @@ async def update_sender_profile(current_profile: str, recent_messages: list[dict
             max_tokens=PROFILE_MAX_TOKENS,
             temperature=PROFILE_TEMPERATURE,
         )
-        updated = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        updated = content.strip() if content else ''
         return updated if updated else current_profile
     except Exception as e:
         logger.error('Failed to update sender profile: %s', e)
