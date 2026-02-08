@@ -81,7 +81,7 @@ async def start_bot():
     api_hash = cfg['API_HASH']
     phone = cfg['PHONE']
 
-    client = TelegramClient('bot_session', api_id, api_hash)
+    client = TelegramClient('data/bot_session', api_id, api_hash)
 
     @client.on(events.NewMessage(incoming=True, from_users=None))
     async def handle_new_message(event):
