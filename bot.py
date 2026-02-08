@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from telethon import TelegramClient, events
 from telethon.tl.types import User
 import config
 import storage
 import utils
+
+logger = logging.getLogger(__name__)
 
 client = None
 
@@ -61,8 +64,9 @@ async def start_bot():
             if notify_url:
                 utils.notify_api(summary, sender_name, notify_url)
             
-            print(f"Received message from {sender_name}: {message_text[:50]}...")
-            print(f"Summary: {summary}")
+            logger.debug("Received message from %s: %s", sender_name, message_text)
+            logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
+            logger.debug("Summary: %s", summary)
     
     await client.start(phone=phone)
     print("Bot is running...")
