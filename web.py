@@ -9,15 +9,31 @@ MASKED_FIELDS = ('API_HASH', 'OPENAI_API_KEY')
 
 
 def mask_value(value):
-    """Mask a sensitive value with 16 asterisks"""
+    """Mask a sensitive value with proportional visible characters.
+
+    Visible chars per side = length // 8, capped at 4.
+      1-7  chars: all masked
+      8-15 chars: 1 char each side
+      16-23 chars: 2 chars each side
+      24-31 chars: 3 chars each side
+      32+  chars: 4 chars each side + 32 asterisks
+    """
     if not value:
         return ''
-    return '*' * 16
+    length = len(value)
+    visible = min(length // 8, 4)
+    if visible == 0:
+        return '*' * length
+    mask_count = min(length - visible * 2, 32)
+    return value[:visible] + '*' * mask_count + value[-visible:]
 
 
 def is_masked(value):
     """Check if a value is a masked placeholder"""
-    return value == '*' * 16
+    if not value:
+        return False
+    stripped = value.replace('*', '')
+    return len(stripped) <= 8 and '**' in value
 
 
 @app.route('/')
