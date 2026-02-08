@@ -13,312 +13,611 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f5f5f7;
             min-height: 100vh;
-            padding: 20px;
+            display: flex;
         }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .header {
-            text-align: center;
+        /* Sidebar Styles */
+        .sidebar {
+            width: 320px;
+            background: linear-gradient(180deg, #5b21b6 0%, #7c3aed 100%);
             color: white;
-            margin-bottom: 30px;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
         }
 
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+        .sidebar-header {
+            padding: 30px 25px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .logo-icon {
+            font-size: 32px;
+        }
+
+        .logo-text {
+            font-size: 20px;
             font-weight: 700;
         }
 
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
+        .subtitle {
+            font-size: 13px;
+            opacity: 0.85;
+            margin-left: 44px;
         }
 
-        .card {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .card h2 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 1.8em;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 10px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 600;
-            font-size: 0.95em;
-        }
-
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 1em;
-            transition: border-color 0.3s;
-        }
-
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .form-group small {
-            display: block;
-            margin-top: 5px;
-            color: #888;
-            font-size: 0.85em;
-        }
-
-        .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 8px;
-            font-size: 1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .status {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.9em;
-            font-weight: 600;
-            margin-bottom: 15px;
-        }
-
-        .status.running {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status.stopped {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .status.not-configured {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .message-list {
-            max-height: 500px;
+        .nav-menu {
+            padding: 20px 15px;
+            flex: 1;
             overflow-y: auto;
         }
 
-        .message-item {
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 8px;
-            border-left: 4px solid;
-        }
-
-        .message-item.received {
-            background: #f0f4ff;
-            border-left-color: #667eea;
-        }
-
-        .message-item.sent {
-            background: #f0fff4;
-            border-left-color: #48bb78;
-        }
-
-        .message-header {
+        .nav-button {
+            width: 100%;
+            padding: 14px 18px;
+            background: transparent;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
             display: flex;
-            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
             margin-bottom: 8px;
-            font-size: 0.9em;
         }
 
-        .message-sender {
-            font-weight: 600;
-            color: #333;
+        .nav-button:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(4px);
         }
 
-        .message-time {
-            color: #888;
+        .nav-button.active {
+            background: rgba(255, 255, 255, 0.2);
         }
 
-        .message-direction {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.75em;
-            font-weight: 600;
-            margin-left: 8px;
-        }
-
-        .message-direction.received {
-            background: #667eea;
-            color: white;
-        }
-
-        .message-direction.sent {
-            background: #48bb78;
-            color: white;
-        }
-
-        .message-text {
-            color: #555;
-            line-height: 1.5;
-            word-wrap: break-word;
-        }
-
-        .empty-state {
+        .nav-icon {
+            font-size: 18px;
+            width: 20px;
             text-align: center;
-            padding: 40px;
-            color: #888;
         }
 
-        .empty-state svg {
-            width: 80px;
-            height: 80px;
-            margin-bottom: 15px;
-            opacity: 0.5;
+        .conversation-list {
+            margin-top: 20px;
+        }
+
+        .conversation-header {
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0.7;
+            padding: 10px 18px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .conversation-item {
+            padding: 12px 18px;
+            margin: 4px 0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .conversation-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .conversation-sender {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .conversation-preview {
+            font-size: 13px;
+            opacity: 0.7;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sidebar-footer {
+            padding: 20px 25px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.configured {
+            background: #10b981;
+        }
+
+        .status-dot.not-configured {
+            background: #f59e0b;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Main Content Styles */
+        .main-content {
+            margin-left: 320px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .top-bar {
+            background: white;
+            padding: 24px 40px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .content-area {
+            padding: 30px 40px;
+            flex: 1;
         }
 
         .alert {
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
             display: none;
+            font-weight: 500;
+            border: 1px solid;
         }
 
         .alert.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            background: #d1fae5;
+            color: #065f46;
+            border-color: #6ee7b7;
         }
 
         .alert.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            background: #fee2e2;
+            color: #991b1b;
+            border-color: #fca5a5;
         }
 
         .alert.show {
             display: block;
         }
 
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e7eb;
         }
 
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f3f4f6;
+        }
+
+        .card-icon {
+            font-size: 24px;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #374151;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 6px;
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(124, 58, 237, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .message-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .message-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .message-list::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 4px;
+        }
+
+        .message-list::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 4px;
+        }
+
+        .message-list::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+
+        .message-item {
+            padding: 18px 20px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            border-left: 4px solid;
+            transition: all 0.2s;
+        }
+
+        .message-item:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .message-item.received {
+            background: #f0f4ff;
+            border-left-color: #7c3aed;
+        }
+
+        .message-item.sent {
+            background: #f0fdf4;
+            border-left-color: #10b981;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .message-sender-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .message-sender {
+            font-weight: 700;
+            color: #1f2937;
+            font-size: 15px;
+        }
+
+        .message-direction {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .message-direction.received {
+            background: #7c3aed;
+            color: white;
+        }
+
+        .message-direction.sent {
+            background: #10b981;
+            color: white;
+        }
+
+        .message-time {
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        .message-text {
+            color: #374151;
+            line-height: 1.6;
+            word-wrap: break-word;
+            font-size: 14px;
+        }
+
+        .message-summary {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(0, 0, 0, 0.08);
+            font-style: italic;
+            opacity: 0.8;
+            font-size: 13px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #9ca3af;
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-text {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .status-badge.configured {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge.not-configured {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        /* View Toggle */
+        .view-container {
+            display: none;
+        }
+
+        .view-container.active {
+            display: block;
+        }
+
+        /* Responsive Design */
         @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2em;
+            .sidebar {
+                width: 280px;
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+                z-index: 100;
+            }
+
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .top-bar, .content-area {
+                padding-left: 20px;
+                padding-right: 20px;
             }
 
             .card {
                 padding: 20px;
             }
-
-            .grid {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📱 Telegram Auto-Response Bot</h1>
-            <p>자동 응답 텔레그램 봇 관리 시스템</p>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">📱</span>
+                <span class="logo-text">Telegram Bot</span>
+            </div>
+            <div class="subtitle">자동 응답 관리 시스템</div>
         </div>
 
-        <div id="alert" class="alert"></div>
+        <div class="nav-menu">
+            <button class="nav-button active" onclick="switchView('conversations')" id="nav-conversations">
+                <span class="nav-icon">💬</span>
+                <span>대화 목록</span>
+            </button>
+            <button class="nav-button" onclick="switchView('settings')" id="nav-settings">
+                <span class="nav-icon">⚙️</span>
+                <span>설정</span>
+            </button>
 
-        <!-- Configuration Section -->
-        <div class="card" id="config-section">
-            <h2>⚙️ 설정</h2>
-            <div id="status-container"></div>
-            <form id="config-form">
-                <div class="form-group">
-                    <label for="api_id">API ID</label>
-                    <input type="text" id="api_id" name="api_id" required>
-                    <small>텔레그램 API ID (my.telegram.org에서 발급)</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="api_hash">API Hash</label>
-                    <input type="text" id="api_hash" name="api_hash" required>
-                    <small>텔레그램 API Hash (my.telegram.org에서 발급)</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="phone">전화번호</label>
-                    <input type="text" id="phone" name="phone" required>
-                    <small>국가코드 포함 (예: +821012345678)</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="notify_api_url">알림 API URL (선택사항)</label>
-                    <input type="url" id="notify_api_url" name="notify_api_url">
-                    <small>메시지 요약을 전송할 API 주소</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="auto_response_message">자동 응답 메시지</label>
-                    <textarea id="auto_response_message" name="auto_response_message" rows="3"></textarea>
-                    <small>메시지 수신 시 자동으로 보낼 응답</small>
-                </div>
-
-                <button type="submit" class="btn">💾 설정 저장</button>
-            </form>
+            <div class="conversation-list" id="recent-conversations">
+                <!-- Recent conversations will be populated here -->
+            </div>
         </div>
 
-        <!-- Message History Section -->
-        <div class="card">
-            <h2>📨 최근 메시지 내역</h2>
-            <div id="message-list" class="message-list">
-                <div class="empty-state">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                    </svg>
-                    <p>아직 메시지가 없습니다</p>
+        <div class="sidebar-footer">
+            <div class="status-indicator">
+                <div class="status-dot not-configured" id="sidebar-status-dot"></div>
+                <span id="sidebar-status-text">설정 필요</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="top-bar">
+            <h1 class="page-title" id="page-title">대화 목록</h1>
+        </div>
+
+        <div class="content-area">
+            <div id="alert" class="alert"></div>
+
+            <!-- Conversations View -->
+            <div class="view-container active" id="view-conversations">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-icon">📨</span>
+                        <h2 class="card-title">최근 메시지 내역</h2>
+                    </div>
+                    <div id="message-list" class="message-list">
+                        <div class="empty-state">
+                            <div class="empty-icon">💬</div>
+                            <div class="empty-text">아직 메시지가 없습니다</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div class="view-container" id="view-settings">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-icon">⚙️</span>
+                        <h2 class="card-title">봇 설정</h2>
+                    </div>
+                    <div id="status-container"></div>
+                    <form id="config-form">
+                        <div class="form-group">
+                            <label for="api_id">API ID</label>
+                            <input type="text" id="api_id" name="api_id" required>
+                            <small>텔레그램 API ID (my.telegram.org에서 발급)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="api_hash">API Hash</label>
+                            <input type="text" id="api_hash" name="api_hash" required>
+                            <small>텔레그램 API Hash (my.telegram.org에서 발급)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="phone">전화번호</label>
+                            <input type="text" id="phone" name="phone" required>
+                            <small>국가코드 포함 (예: +821012345678)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="notify_api_url">알림 API URL (선택사항)</label>
+                            <input type="url" id="notify_api_url" name="notify_api_url">
+                            <small>메시지 요약을 전송할 API 주소</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="auto_response_message">자동 응답 메시지</label>
+                            <textarea id="auto_response_message" name="auto_response_message" rows="4"></textarea>
+                            <small>메시지 수신 시 자동으로 보낼 응답</small>
+                        </div>
+
+                        <button type="submit" class="btn">
+                            <span>💾</span>
+                            <span>설정 저장</span>
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
+        // View Management
+        function switchView(viewName) {
+            // Update navigation buttons
+            document.querySelectorAll('.nav-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (viewName === 'conversations') {
+                document.getElementById('nav-conversations').classList.add('active');
+                document.getElementById('page-title').textContent = '대화 목록';
+            } else if (viewName === 'settings') {
+                document.getElementById('nav-settings').classList.add('active');
+                document.getElementById('page-title').textContent = '설정';
+            }
+
+            // Update view containers
+            document.querySelectorAll('.view-container').forEach(view => {
+                view.classList.remove('active');
+            });
+            document.getElementById('view-' + viewName).classList.add('active');
+        }
+
         // Load configuration on page load
         async function loadConfig() {
             try {
@@ -348,12 +647,11 @@
                 if (messages.length === 0) {
                     messageList.innerHTML = `
                         <div class="empty-state">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                            </svg>
-                            <p>아직 메시지가 없습니다</p>
+                            <div class="empty-icon">💬</div>
+                            <div class="empty-text">아직 메시지가 없습니다</div>
                         </div>
                     `;
+                    updateRecentConversations([]);
                     return;
                 }
                 
@@ -364,20 +662,53 @@
                     return `
                         <div class="message-item ${msg.direction}">
                             <div class="message-header">
-                                <div>
+                                <div class="message-sender-row">
                                     <span class="message-sender">${escapeHtml(msg.sender)}</span>
                                     <span class="message-direction ${msg.direction}">${msg.direction === 'received' ? '수신' : '발신'}</span>
                                 </div>
                                 <span class="message-time">${timeStr}</span>
                             </div>
                             <div class="message-text">${escapeHtml(msg.text)}</div>
-                            ${msg.summary ? `<div class="message-text" style="margin-top: 8px; font-style: italic; opacity: 0.8;">요약: ${escapeHtml(msg.summary)}</div>` : ''}
+                            ${msg.summary ? `<div class="message-summary">요약: ${escapeHtml(msg.summary)}</div>` : ''}
                         </div>
                     `;
                 }).join('');
+
+                // Update recent conversations in sidebar
+                updateRecentConversations(messages);
             } catch (error) {
                 console.error('Error loading messages:', error);
             }
+        }
+
+        // Update recent conversations in sidebar
+        function updateRecentConversations(messages) {
+            const container = document.getElementById('recent-conversations');
+            
+            if (messages.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            // Group by sender and get latest 5
+            const conversationMap = new Map();
+            messages.forEach(msg => {
+                if (!conversationMap.has(msg.sender)) {
+                    conversationMap.set(msg.sender, msg);
+                }
+            });
+
+            const recentConversations = Array.from(conversationMap.values()).slice(0, 5);
+
+            container.innerHTML = `
+                <div class="conversation-header">최근 대화</div>
+                ${recentConversations.map(msg => `
+                    <div class="conversation-item">
+                        <div class="conversation-sender">${escapeHtml(msg.sender)}</div>
+                        <div class="conversation-preview">${escapeHtml(msg.text.substring(0, 30))}${msg.text.length > 30 ? '...' : ''}</div>
+                    </div>
+                `).join('')}
+            `;
         }
 
         // Save configuration
@@ -415,10 +746,17 @@
 
         function updateStatus(isConfigured) {
             const statusContainer = document.getElementById('status-container');
+            const sidebarDot = document.getElementById('sidebar-status-dot');
+            const sidebarText = document.getElementById('sidebar-status-text');
+            
             if (isConfigured) {
-                statusContainer.innerHTML = '<div class="status running">✓ 설정 완료</div>';
+                statusContainer.innerHTML = '<div class="status-badge configured">✓ 설정 완료</div>';
+                sidebarDot.className = 'status-dot configured';
+                sidebarText.textContent = '설정 완료';
             } else {
-                statusContainer.innerHTML = '<div class="status not-configured">⚠ 설정 필요</div>';
+                statusContainer.innerHTML = '<div class="status-badge not-configured">⚠ 설정 필요</div>';
+                sidebarDot.className = 'status-dot not-configured';
+                sidebarText.textContent = '설정 필요';
             }
         }
 
