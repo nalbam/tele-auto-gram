@@ -28,13 +28,18 @@ logging.basicConfig(
 
 def _shutdown(signum: int, frame: FrameType | None) -> None:
     """Graceful shutdown handler"""
+    import asyncio
     print("\n\nShutting down...")
     with bot._state_lock:
         cl = bot.client
         loop = bot._bot_loop
-    if cl and loop:
-        import asyncio
-        asyncio.run_coroutine_threadsafe(cl.disconnect(), loop)
+    if cl and loop and loop.is_running():
+        try:
+            result = cl.disconnect()
+            if asyncio.iscoroutine(result):
+                asyncio.run_coroutine_threadsafe(result, loop)
+        except Exception:
+            pass
     sys.exit(0)
 
 
