@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -18,8 +19,34 @@ _migration_lock = threading.Lock()
 _migration_done = False
 
 
+def _secure_write(filepath: str, write_fn: Any) -> None:
+    """Write file atomically with restricted permissions.
+
+    Creates a temp file in the same directory, calls write_fn(f) to populate it,
+    sets permissions to 0o600, then atomically replaces the target file.
+    """
+    dir_name = os.path.dirname(filepath) or '.'
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            write_fn(f)
+        os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, filepath)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 def _get_lock(sender_id: str) -> threading.Lock:
-    """Get or create a lock for a sender_id (LRU eviction when over MAX_LOCKS)"""
+    """Get or create a lock for a sender_id (LRU eviction when over MAX_LOCKS).
+
+    Thread-safety: access to _locks dict is serialized via _locks_lock.
+    The returned Lock is safe to use across threads for a given sender_id.
+    Eviction only removes unlocked entries, so active operations are never disrupted.
+    """
     with _locks_lock:
         if sender_id in _locks:
             # Move to end (most recently used)
@@ -86,8 +113,7 @@ def _save_sender_messages(sender_id: str, messages: list[dict[str, Any]]) -> Non
             os.remove(filepath)
         return
 
-    with open(filepath, 'w', encoding='utf-8') as f:
-        json.dump(messages, f, indent=2, ensure_ascii=False)
+    _secure_write(filepath, lambda f: json.dump(messages, f, indent=2, ensure_ascii=False))
 
 
 def _migrate_legacy_messages() -> None:
@@ -183,13 +209,12 @@ def load_sender_profile(sender_id: int | str) -> str:
 
 
 def save_sender_profile(sender_id: int | str, content: str) -> None:
-    """Save sender profile markdown."""
+    """Save sender profile markdown (atomic write with restricted permissions)."""
     ensure_messages_dir()
     sid = str(sender_id)
     with _get_lock(sid):
         filepath = _sender_profile_path(sid)
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(content)
+        _secure_write(filepath, lambda f: f.write(content))
 
 
 def _history_synced_path(sender_id: str) -> str:
@@ -207,8 +232,7 @@ def mark_history_synced(sender_id: int | str) -> None:
     """Mark that Telegram history has been synced for a sender"""
     ensure_messages_dir()
     filepath = _history_synced_path(str(sender_id))
-    with open(filepath, 'w') as f:
-        f.write(datetime.now(timezone.utc).isoformat())
+    _secure_write(filepath, lambda f: f.write(datetime.now(timezone.utc).isoformat()))
 
 
 def import_messages(sender_id: int | str, messages: list[dict[str, Any]]) -> None:

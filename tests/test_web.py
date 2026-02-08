@@ -262,3 +262,137 @@ class TestContentType:
                                data=json.dumps({'API_ID': '123'}),
                                headers=_json_headers())
         assert resp.status_code == 200
+
+
+class TestRateLimiting:
+    def test_auth_rate_limit(self, app_client, monkeypatch):
+        """Auth endpoints are rate limited to 5 requests per minute"""
+        import web
+        monkeypatch.setattr('bot.submit_auth_code', lambda c: None)
+
+        # Clear rate store to ensure clean state
+        web._rate_store.clear()
+
+        for i in range(5):
+            resp = app_client.post('/api/auth/code',
+                                   data=json.dumps({'code': '12345'}),
+                                   headers=_json_headers())
+            assert resp.status_code == 200
+
+        # 6th request should be rate limited
+        resp = app_client.post('/api/auth/code',
+                               data=json.dumps({'code': '12345'}),
+                               headers=_json_headers())
+        assert resp.status_code == 429
+        assert 'Too many requests' in resp.get_json()['message']
+
+    def test_api_rate_limit(self, app_client, monkeypatch):
+        """API endpoints are rate limited to 30 requests per minute"""
+        import web
+        monkeypatch.setattr('config.load_config', lambda: {})
+        monkeypatch.setattr('config.is_configured', lambda: False)
+
+        # Clear rate store
+        web._rate_store.clear()
+
+        for i in range(30):
+            resp = app_client.get('/api/config')
+            assert resp.status_code == 200
+
+        # 31st request should be rate limited
+        resp = app_client.get('/api/config')
+        assert resp.status_code == 429
+
+    def test_non_api_not_rate_limited(self, app_client, monkeypatch):
+        """Non-API routes are not rate limited"""
+        import web
+        web._rate_store.clear()
+
+        for _ in range(50):
+            resp = app_client.get('/')
+            assert resp.status_code == 200
+
+
+class TestDelayValidation:
+    def test_save_config_delay_negative(self, app_client, monkeypatch):
+        """POST /api/config rejects negative delay values"""
+        monkeypatch.setattr('config.load_config', lambda: {})
+
+        resp = app_client.post('/api/config',
+                               data=json.dumps({'RESPONSE_DELAY_MIN': -1}),
+                               headers=_json_headers())
+        assert resp.status_code == 400
+
+    def test_save_config_delay_too_large(self, app_client, monkeypatch):
+        """POST /api/config rejects delay values over 3600"""
+        monkeypatch.setattr('config.load_config', lambda: {})
+
+        resp = app_client.post('/api/config',
+                               data=json.dumps({'RESPONSE_DELAY_MAX': 3601}),
+                               headers=_json_headers())
+        assert resp.status_code == 400
+
+    def test_save_config_delay_min_exceeds_max(self, app_client, monkeypatch):
+        """POST /api/config rejects min > max"""
+        monkeypatch.setattr('config.load_config', lambda: {})
+
+        resp = app_client.post('/api/config',
+                               data=json.dumps({'RESPONSE_DELAY_MIN': 10, 'RESPONSE_DELAY_MAX': 5}),
+                               headers=_json_headers())
+        assert resp.status_code == 400
+
+    def test_save_config_delay_valid(self, app_client, monkeypatch):
+        """POST /api/config accepts valid delay range"""
+        monkeypatch.setattr('config.load_config', lambda: {})
+        saved = {}
+        monkeypatch.setattr('config.save_config', lambda d: saved.update(d))
+
+        resp = app_client.post('/api/config',
+                               data=json.dumps({'RESPONSE_DELAY_MIN': 3, 'RESPONSE_DELAY_MAX': 10}),
+                               headers=_json_headers())
+        assert resp.status_code == 200
+
+    def test_save_config_delay_non_numeric(self, app_client, monkeypatch):
+        """POST /api/config rejects non-numeric delay values"""
+        monkeypatch.setattr('config.load_config', lambda: {})
+
+        resp = app_client.post('/api/config',
+                               data=json.dumps({'RESPONSE_DELAY_MIN': 'abc'}),
+                               headers=_json_headers())
+        assert resp.status_code == 400
+
+
+class TestAuthInputLength:
+    def test_auth_code_too_long(self, app_client):
+        """POST /api/auth/code rejects code longer than 10 chars"""
+        resp = app_client.post('/api/auth/code',
+                               data=json.dumps({'code': '12345678901'}),
+                               headers=_json_headers())
+        assert resp.status_code == 400
+        assert 'max 10' in resp.get_json()['message']
+
+    def test_auth_code_max_length(self, app_client, monkeypatch):
+        """POST /api/auth/code accepts code of exactly 10 chars"""
+        monkeypatch.setattr('bot.submit_auth_code', lambda c: None)
+
+        resp = app_client.post('/api/auth/code',
+                               data=json.dumps({'code': '1234567890'}),
+                               headers=_json_headers())
+        assert resp.status_code == 200
+
+    def test_auth_password_too_long(self, app_client):
+        """POST /api/auth/password rejects password longer than 256 chars"""
+        resp = app_client.post('/api/auth/password',
+                               data=json.dumps({'password': 'x' * 257}),
+                               headers=_json_headers())
+        assert resp.status_code == 400
+        assert 'max 256' in resp.get_json()['message']
+
+    def test_auth_password_max_length(self, app_client, monkeypatch):
+        """POST /api/auth/password accepts password of exactly 256 chars"""
+        monkeypatch.setattr('bot.submit_auth_password', lambda p: None)
+
+        resp = app_client.post('/api/auth/password',
+                               data=json.dumps({'password': 'x' * 256}),
+                               headers=_json_headers())
+        assert resp.status_code == 200

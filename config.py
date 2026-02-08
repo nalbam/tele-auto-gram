@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import tempfile
 from typing import Any
 from dotenv import load_dotenv
 
@@ -23,6 +24,27 @@ def _safe_int(value: Any, default: int) -> int:
 def ensure_data_dir() -> None:
     """Ensure data directory exists"""
     os.makedirs('data', exist_ok=True)
+
+
+def _secure_write(filepath: str, write_fn: Any) -> None:
+    """Write file atomically with restricted permissions.
+
+    Creates a temp file in the same directory, calls write_fn(f) to populate it,
+    sets permissions to 0o600, then atomically replaces the target file.
+    """
+    dir_name = os.path.dirname(filepath) or '.'
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            write_fn(f)
+        os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, filepath)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 def load_config() -> dict[str, Any]:
     """Load configuration from file or environment"""
@@ -53,10 +75,9 @@ def load_config() -> dict[str, Any]:
     return config
 
 def save_config(config: dict[str, Any]) -> None:
-    """Save configuration to file"""
+    """Save configuration to file (atomic write with restricted permissions)"""
     ensure_data_dir()
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
+    _secure_write(CONFIG_FILE, lambda f: json.dump(config, f, indent=2, ensure_ascii=False))
 
 IDENTITY_FILE = 'data/IDENTITY.md'
 
@@ -93,15 +114,13 @@ def _migrate_system_prompt() -> None:
     prompt = file_config.pop('SYSTEM_PROMPT', None)
     if prompt:
         save_identity(prompt)
-        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(file_config, f, indent=2, ensure_ascii=False)
+        _secure_write(CONFIG_FILE, lambda f: json.dump(file_config, f, indent=2, ensure_ascii=False))
 
 
 def save_identity(content: str) -> None:
-    """Save identity prompt to data/IDENTITY.md"""
+    """Save identity prompt to data/IDENTITY.md (atomic write with restricted permissions)"""
     ensure_data_dir()
-    with open(IDENTITY_FILE, 'w', encoding='utf-8') as f:
-        f.write(content)
+    _secure_write(IDENTITY_FILE, lambda f: f.write(content))
 
 
 def is_configured() -> bool:

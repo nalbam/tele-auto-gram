@@ -213,3 +213,33 @@ def test_lru_lock_reuse_moves_to_end(monkeypatch):
     assert 'a' in storage._locks
     assert 'b' not in storage._locks
     assert 'd' in storage._locks
+
+
+def test_save_sender_messages_file_permissions():
+    """_save_sender_messages creates file with 0o600 permissions"""
+    import storage
+    storage.add_message('received', 'Alice', 'Hello', sender_id=900)
+    filepath = os.path.join(storage.MESSAGES_DIR, '900.json')
+    assert os.path.exists(filepath)
+    mode = os.stat(filepath).st_mode & 0o777
+    assert mode == 0o600
+
+
+def test_save_sender_profile_file_permissions():
+    """save_sender_profile creates file with 0o600 permissions"""
+    import storage
+    storage.save_sender_profile(901, 'Test profile content')
+    filepath = os.path.join(storage.MESSAGES_DIR, '901.md')
+    assert os.path.exists(filepath)
+    mode = os.stat(filepath).st_mode & 0o777
+    assert mode == 0o600
+
+
+def test_mark_history_synced_file_permissions():
+    """mark_history_synced creates file with 0o600 permissions"""
+    import storage
+    storage.mark_history_synced(902)
+    filepath = os.path.join(storage.MESSAGES_DIR, '902.synced')
+    assert os.path.exists(filepath)
+    mode = os.stat(filepath).st_mode & 0o777
+    assert mode == 0o600

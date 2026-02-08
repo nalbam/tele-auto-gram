@@ -37,7 +37,8 @@ def _shutdown(signum: int, frame: FrameType | None) -> None:
         try:
             result = cl.disconnect()
             if asyncio.iscoroutine(result):
-                asyncio.run_coroutine_threadsafe(result, loop)
+                future = asyncio.run_coroutine_threadsafe(result, loop)
+                future.result(timeout=5)
         except Exception:
             pass
     sys.exit(0)

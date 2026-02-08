@@ -1,7 +1,8 @@
 import logging
 import os
 import secrets
-from typing import Any
+import time
+import threading
 
 from flask import Flask, render_template, request, jsonify
 import config
@@ -18,6 +19,47 @@ MASKED_FIELDS = ('API_HASH', 'OPENAI_API_KEY')
 WEB_TOKEN = os.getenv('WEB_TOKEN', '')
 if not WEB_TOKEN:
     logger.warning("WEB_TOKEN is not set — API endpoints are unprotected")
+
+# --- In-memory rate limiter ---
+AUTH_RATE_LIMIT = 5       # requests per minute for auth endpoints
+API_RATE_LIMIT = 30       # requests per minute for other API endpoints
+RATE_LIMIT_WINDOW = 60    # seconds
+
+_rate_store: dict[str, list[float]] = {}
+_rate_lock = threading.Lock()
+
+AUTH_PATHS = frozenset({'/api/auth/code', '/api/auth/password'})
+
+
+def _check_rate_limit(key: str, limit: int) -> bool:
+    """Check if request is within rate limit. Returns True if allowed."""
+    now = time.monotonic()
+    cutoff = now - RATE_LIMIT_WINDOW
+    with _rate_lock:
+        timestamps = _rate_store.get(key, [])
+        timestamps = [t for t in timestamps if t > cutoff]
+        if len(timestamps) >= limit:
+            _rate_store[key] = timestamps
+            return False
+        timestamps.append(now)
+        _rate_store[key] = timestamps
+        return True
+
+
+@app.before_request
+def check_rate_limit():
+    """Apply rate limiting to API endpoints"""
+    if not request.path.startswith('/api/'):
+        return
+    client_ip = request.remote_addr or 'unknown'
+    if request.path in AUTH_PATHS:
+        key = f'auth:{client_ip}'
+        if not _check_rate_limit(key, AUTH_RATE_LIMIT):
+            return jsonify({'status': 'error', 'message': 'Too many requests. Please try again later.'}), 429
+    else:
+        key = f'api:{client_ip}'
+        if not _check_rate_limit(key, API_RATE_LIMIT):
+            return jsonify({'status': 'error', 'message': 'Too many requests. Please try again later.'}), 429
 
 
 @app.before_request
@@ -102,6 +144,27 @@ def save_config():
                 int(str(api_id).strip())
             except (TypeError, ValueError):
                 return jsonify({'status': 'error', 'message': 'API_ID must be a number'}), 400
+
+        # Validate delay ranges (0 ≤ value ≤ 3600, min ≤ max)
+        delay_pairs = [
+            ('RESPONSE_DELAY_MIN', 'RESPONSE_DELAY_MAX'),
+            ('READ_RECEIPT_DELAY_MIN', 'READ_RECEIPT_DELAY_MAX'),
+        ]
+        for min_key, max_key in delay_pairs:
+            for key in (min_key, max_key):
+                val = data.get(key)
+                if val is not None:
+                    try:
+                        num = int(val)
+                    except (TypeError, ValueError):
+                        return jsonify({'status': 'error', 'message': f'{key} must be a number'}), 400
+                    if num < 0 or num > 3600:
+                        return jsonify({'status': 'error', 'message': f'{key} must be between 0 and 3600'}), 400
+            d_min = data.get(min_key)
+            d_max = data.get(max_key)
+            if d_min is not None and d_max is not None:
+                if int(d_min) > int(d_max):
+                    return jsonify({'status': 'error', 'message': f'{min_key} must not exceed {max_key}'}), 400
 
         # Preserve existing values when masked value is submitted unchanged
         existing = config.load_config()
@@ -193,6 +256,8 @@ def submit_auth_code():
     code = data.get('code', '').strip()
     if not code:
         return jsonify({'status': 'error', 'message': 'Code is required'}), 400
+    if len(code) > 10:
+        return jsonify({'status': 'error', 'message': 'Code too long (max 10 characters)'}), 400
     bot.submit_auth_code(code)
     return jsonify({'status': 'success'})
 
@@ -204,6 +269,8 @@ def submit_auth_password():
     password = data.get('password', '')
     if not password:
         return jsonify({'status': 'error', 'message': 'Password is required'}), 400
+    if len(password) > 256:
+        return jsonify({'status': 'error', 'message': 'Password too long (max 256 characters)'}), 400
     bot.submit_auth_password(password)
     return jsonify({'status': 'success'})
 

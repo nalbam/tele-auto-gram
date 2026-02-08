@@ -2,6 +2,7 @@
 import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from telethon.tl.types import User
 
 import bot
 import storage
@@ -482,3 +483,325 @@ class TestDebounce:
         assert 'end-evt1' not in call_log
         assert 'start-evt2' in call_log
         assert 'end-evt2' in call_log
+
+
+class TestParseDelayConfig:
+    def test_valid_values(self):
+        """Parses valid numeric values"""
+        cfg = {'MIN': '2', 'MAX': '8'}
+        result = bot._parse_delay_config(cfg, 'MIN', 'MAX', 3.0, 10.0)
+        assert result == (2.0, 8.0)
+
+    def test_missing_keys_use_defaults(self):
+        """Uses defaults when keys are missing"""
+        result = bot._parse_delay_config({}, 'MIN', 'MAX', 3.0, 10.0)
+        assert result == (3.0, 10.0)
+
+    def test_invalid_values_use_defaults(self):
+        """Falls back to defaults on invalid values"""
+        cfg = {'MIN': 'bad', 'MAX': None}
+        result = bot._parse_delay_config(cfg, 'MIN', 'MAX', 3.0, 10.0)
+        assert result == (3.0, 10.0)
+
+    def test_swaps_when_inverted(self):
+        """Swaps min/max when min > max"""
+        cfg = {'MIN': '10', 'MAX': '2'}
+        result = bot._parse_delay_config(cfg, 'MIN', 'MAX', 3.0, 10.0)
+        assert result == (2.0, 10.0)
+
+    def test_equal_values(self):
+        """Handles equal min and max"""
+        cfg = {'MIN': '5', 'MAX': '5'}
+        result = bot._parse_delay_config(cfg, 'MIN', 'MAX', 3.0, 10.0)
+        assert result == (5.0, 5.0)
+
+    def test_float_values(self):
+        """Parses float string values"""
+        cfg = {'MIN': '1.5', 'MAX': '7.5'}
+        result = bot._parse_delay_config(cfg, 'MIN', 'MAX', 3.0, 10.0)
+        assert result == (1.5, 7.5)
+
+    def test_mixed_valid_invalid(self):
+        """Falls back per-field: valid min, invalid max"""
+        cfg = {'MIN': '2', 'MAX': 'bad'}
+        result = bot._parse_delay_config(cfg, 'MIN', 'MAX', 3.0, 10.0)
+        assert result == (2.0, 10.0)
+
+
+class TestCreateClient:
+    def test_valid_config(self):
+        """Creates TelegramClient with valid config"""
+        cfg = {'API_ID': '12345', 'API_HASH': 'abcdef'}
+        cl = bot._create_client(cfg)
+        assert cl is not None
+
+    def test_invalid_api_id(self):
+        """Raises ValueError for non-numeric API_ID"""
+        cfg = {'API_ID': 'not_a_number', 'API_HASH': 'abcdef'}
+        with pytest.raises(ValueError, match='Invalid API_ID'):
+            bot._create_client(cfg)
+
+
+class TestGenerateResponse:
+    @pytest.mark.asyncio
+    async def test_with_openai_key(self):
+        """Returns AI response when OPENAI_API_KEY is set"""
+        with patch.object(bot.ai, 'build_chat_messages', return_value=[{'role': 'user', 'content': 'hi'}]), \
+             patch.object(bot.ai, 'generate_response', new_callable=AsyncMock, return_value='AI says hi'):
+            result = await bot._generate_response(
+                'Alice', [{'direction': 'received', 'text': 'hi'}],
+                '', 'Be friendly', {'OPENAI_API_KEY': 'sk-test'}
+            )
+        assert result == 'AI says hi'
+
+    @pytest.mark.asyncio
+    async def test_without_openai_key(self):
+        """Returns fallback message when no OPENAI_API_KEY"""
+        result = await bot._generate_response(
+            'Alice', [], '', '', {'AUTO_RESPONSE_MESSAGE': 'I am away'}
+        )
+        assert result == 'I am away'
+
+    @pytest.mark.asyncio
+    async def test_ai_failure_returns_fallback(self):
+        """Returns fallback when AI call fails"""
+        with patch.object(bot.ai, 'build_chat_messages', return_value=[]), \
+             patch.object(bot.ai, 'generate_response', new_callable=AsyncMock, side_effect=Exception('API error')):
+            result = await bot._generate_response(
+                'Alice', [], '', '', {'OPENAI_API_KEY': 'sk-test', 'AUTO_RESPONSE_MESSAGE': 'Fallback'}
+            )
+        assert result == 'Fallback'
+
+    @pytest.mark.asyncio
+    async def test_ai_empty_response_returns_fallback(self):
+        """Returns fallback when AI returns empty string"""
+        with patch.object(bot.ai, 'build_chat_messages', return_value=[]), \
+             patch.object(bot.ai, 'generate_response', new_callable=AsyncMock, return_value=''):
+            result = await bot._generate_response(
+                'Alice', [], '', '', {'OPENAI_API_KEY': 'sk-test', 'AUTO_RESPONSE_MESSAGE': 'Fallback'}
+            )
+        assert result == 'Fallback'
+
+
+class TestFetchTelegramHistory:
+    @pytest.mark.asyncio
+    async def test_returns_imported_messages(self):
+        """Fetches and imports Telegram message history"""
+        cl = _make_client()
+
+        me = MagicMock()
+        me.id = 999
+        cl.get_me = AsyncMock(return_value=me)
+
+        msg1 = MagicMock()
+        msg1.text = 'Hi there'
+        msg1.sender_id = 123
+        msg1.date = MagicMock()
+        msg1.date.isoformat = MagicMock(return_value='2025-01-01T12:00:00+00:00')
+
+        msg2 = MagicMock()
+        msg2.text = 'Reply'
+        msg2.sender_id = 999
+        msg2.date = MagicMock()
+        msg2.date.isoformat = MagicMock(return_value='2025-01-01T12:01:00+00:00')
+
+        cl.get_messages = AsyncMock(return_value=[msg2, msg1])  # newest first from Telegram
+
+        with patch('bot.asyncio.to_thread', new_callable=AsyncMock):
+            result = await bot._fetch_telegram_history(cl, 123, 'Alice', 100)
+
+        assert len(result) == 2
+        assert result[0]['direction'] == 'received'
+        assert result[1]['direction'] == 'sent'
+
+    @pytest.mark.asyncio
+    async def test_empty_history(self):
+        """Returns empty list when no messages found"""
+        cl = _make_client()
+
+        me = MagicMock()
+        me.id = 999
+        cl.get_me = AsyncMock(return_value=me)
+        cl.get_messages = AsyncMock(return_value=[])
+
+        result = await bot._fetch_telegram_history(cl, 123, 'Alice', 100)
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_handles_fetch_error(self):
+        """Returns empty list on fetch error"""
+        cl = _make_client()
+        cl.get_me = AsyncMock(side_effect=Exception("connection error"))
+
+        result = await bot._fetch_telegram_history(cl, 123, 'Alice', 100)
+        assert result == []
+
+
+class TestUpdateSenderProfile:
+    @pytest.mark.asyncio
+    async def test_skips_without_api_key(self):
+        """Does nothing when OPENAI_API_KEY is not set"""
+        with patch('bot.asyncio.to_thread', new_callable=AsyncMock) as mock_thread:
+            await bot._update_sender_profile(123, 'Alice', {})
+        mock_thread.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_updates_profile(self):
+        """Updates profile when content changes"""
+        saved_profiles = []
+
+        async def mock_to_thread(func, *args, **kwargs):
+            if func is storage.load_sender_profile:
+                return 'old profile'
+            elif func is storage.get_messages_by_sender:
+                return [{'direction': 'received', 'text': 'I work at Google'}]
+            elif func is storage.save_sender_profile:
+                saved_profiles.append(args)
+                return None
+            return None
+
+        with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
+             patch.object(bot.ai, 'update_sender_profile', new_callable=AsyncMock, return_value='new profile'):
+            await bot._update_sender_profile(123, 'Alice', {'OPENAI_API_KEY': 'sk-test'})
+
+        assert len(saved_profiles) == 1
+
+    @pytest.mark.asyncio
+    async def test_no_save_when_unchanged(self):
+        """Skips save when profile is unchanged"""
+        async def mock_to_thread(func, *args, **kwargs):
+            if func is storage.load_sender_profile:
+                return 'same profile'
+            elif func is storage.get_messages_by_sender:
+                return [{'direction': 'received', 'text': 'hi'}]
+            elif func is storage.save_sender_profile:
+                pytest.fail("Should not save unchanged profile")
+            return None
+
+        with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
+             patch.object(bot.ai, 'update_sender_profile', new_callable=AsyncMock, return_value='same profile'):
+            await bot._update_sender_profile(123, 'Alice', {'OPENAI_API_KEY': 'sk-test'})
+
+
+class TestHandleNewMessage:
+    @pytest.mark.asyncio
+    async def test_ignores_non_private(self):
+        """Skips non-private messages"""
+        cl = _make_client()
+        event = _make_event()
+        event.is_private = False
+
+        await bot._handle_new_message(cl, event)
+        # No crash, no side effects
+        event.get_sender.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_ignores_empty_message(self):
+        """Skips messages with empty text (media-only)"""
+        cl = _make_client()
+        event = _make_event(message_text='')
+
+        # get_sender will be called, but no storage operations
+        await bot._handle_new_message(cl, event)
+        event.respond.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_full_flow(self):
+        """Full message handling flow: store → receipt → respond"""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='Hi there')
+
+        to_thread_calls = []
+
+        async def mock_to_thread(func, *args, **kwargs):
+            to_thread_calls.append(func.__name__ if hasattr(func, '__name__') else str(func))
+            if func is config.load_config:
+                return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
+                        'RESPONSE_DELAY_MAX': '0', 'READ_RECEIPT_DELAY_MIN': '0',
+                        'READ_RECEIPT_DELAY_MAX': '0'}
+            elif func is storage.is_history_synced:
+                return True
+            elif func is storage.get_messages_by_sender:
+                return [{'direction': 'received', 'text': 'Hi there'}]
+            elif func is storage.load_sender_profile:
+                return ''
+            elif func is config.load_identity:
+                return 'Be friendly'
+            return None
+
+        with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Hello!'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot.ai, 'is_trivial_message', return_value=True):
+            await bot._handle_new_message(cl, event)
+
+        # Response should have been sent
+        event.respond.assert_called_once_with('Hello!')
+        # add_message should have been called (store received)
+        assert 'add_message' in to_thread_calls
+
+    @pytest.mark.asyncio
+    async def test_triggers_history_sync(self):
+        """Triggers Telegram history fetch when not synced"""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='Hi')
+
+        fetch_called = []
+
+        async def mock_to_thread(func, *args, **kwargs):
+            if func is config.load_config:
+                return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
+                        'RESPONSE_DELAY_MAX': '0'}
+            elif func is storage.is_history_synced:
+                return False  # Not yet synced
+            elif func is storage.mark_history_synced:
+                return None
+            elif func is storage.get_messages_by_sender:
+                return [{'direction': 'received', 'text': 'Hi'}]
+            elif func is storage.load_sender_profile:
+                return ''
+            elif func is config.load_identity:
+                return 'Be friendly'
+            return None
+
+        async def mock_fetch(cl, sid, name, msg_id):
+            fetch_called.append(sid)
+            return []
+
+        with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
+             patch.object(bot, '_fetch_telegram_history', side_effect=mock_fetch), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Reply'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot.ai, 'is_trivial_message', return_value=True):
+            await bot._handle_new_message(cl, event)
+
+        assert 123 in fetch_called
+
+    @pytest.mark.asyncio
+    async def test_creates_pending_response_task(self):
+        """_handle_new_message creates and tracks a pending response task"""
+        cl = _make_client()
+        event = _make_event(sender_id=123, message_text='Hi')
+
+        async def mock_to_thread(func, *args, **kwargs):
+            if func is config.load_config:
+                return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
+                        'RESPONSE_DELAY_MAX': '0'}
+            elif func is storage.is_history_synced:
+                return True
+            elif func is storage.get_messages_by_sender:
+                return [{'direction': 'received', 'text': 'Hi'}]
+            elif func is storage.load_sender_profile:
+                return ''
+            elif func is config.load_identity:
+                return 'Be friendly'
+            return None
+
+        with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
+             patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Reply'), \
+             patch('bot.asyncio.sleep', new_callable=AsyncMock), \
+             patch.object(bot.ai, 'is_trivial_message', return_value=True):
+            await bot._handle_new_message(cl, event)
+
+        # After completion, pending_responses should be cleaned up
+        assert 123 not in bot._pending_responses

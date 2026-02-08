@@ -449,6 +449,15 @@
     </div>
 
     <script>
+        // === Constants ===
+        const MESSAGE_POLL_INTERVAL_MS = 10000;
+        const AUTH_POLL_INTERVAL_MS = 3000;
+        const ALERT_DISPLAY_DURATION_MS = 5000;
+        const AUTH_STATUS_RECHECK_DELAY_MS = 1500;
+        const SIDEBAR_MAX_CONVERSATIONS = 8;
+        const CHAT_INPUT_MAX_HEIGHT_PX = 120;
+        const CHAT_SCROLL_THRESHOLD_PX = 50;
+
         // === Auth Token ===
         const WEB_TOKEN = document.querySelector('meta[name="web-token"]')?.content || '';
         function authFetch(url, options = {}) {
@@ -499,7 +508,7 @@
             const el = document.getElementById('alert');
             el.textContent = message;
             el.className = `alert ${type} show`;
-            setTimeout(() => el.classList.remove('show'), 5000);
+            setTimeout(() => el.classList.remove('show'), ALERT_DISPLAY_DURATION_MS);
         }
 
         // === View Management ===
@@ -735,7 +744,7 @@
                 return;
             }
 
-            const wasAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
+            const wasAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - CHAT_SCROLL_THRESHOLD_PX;
             let html = '';
             let lastDate = null;
 
@@ -793,7 +802,7 @@
 
             container.innerHTML = `
                 <div class="sidebar-conv-header">Conversations</div>
-                ${conversations.slice(0, 8).map(conv => {
+                ${conversations.slice(0, SIDEBAR_MAX_CONVERSATIONS).map(conv => {
                     const active = selId === conv.sender_id;
                     const last = conv.messages[conv.messages.length - 1];
                     const preview = truncate(last.text, 25);
@@ -837,7 +846,8 @@
             const sc = document.getElementById('auth-status-container');
             const ec = document.getElementById('auth-error-container');
             const fc = document.getElementById('auth-form-container');
-            sc.innerHTML = `<div class="auth-status-badge ${data.status}">${AUTH_STATUS_LABELS[data.status] || data.status}</div>`;
+            const safeStatus = escapeHtml(data.status);
+            sc.innerHTML = `<div class="auth-status-badge ${safeStatus}">${AUTH_STATUS_LABELS[data.status] || safeStatus}</div>`;
             ec.innerHTML = data.error ? `<div class="auth-error">${escapeHtml(data.error)}</div>` : '';
             if (data.status === 'waiting_code') {
                 fc.innerHTML = `<p style="margin-bottom:16px;color:#374151;">Enter the verification code sent to your Telegram.</p>
@@ -865,7 +875,7 @@
             if (!code) return;
             try {
                 const r = await authFetch('/api/auth/code', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code}) });
-                if (r.ok) { showAlert('Verification code submitted','success'); setTimeout(loadAuthStatus,1500); }
+                if (r.ok) { showAlert('Verification code submitted','success'); setTimeout(loadAuthStatus,AUTH_STATUS_RECHECK_DELAY_MS); }
                 else { const d = await r.json(); showAlert(d.message||'Failed to submit code','error'); }
             } catch(err) { showAlert('Error submitting code','error'); }
         }
@@ -875,7 +885,7 @@
             if (!password) return;
             try {
                 const r = await authFetch('/api/auth/password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password}) });
-                if (r.ok) { showAlert('Password submitted','success'); setTimeout(loadAuthStatus,1500); }
+                if (r.ok) { showAlert('Password submitted','success'); setTimeout(loadAuthStatus,AUTH_STATUS_RECHECK_DELAY_MS); }
                 else { const d = await r.json(); showAlert(d.message||'Failed to submit password','error'); }
             } catch(err) { showAlert('Error submitting password','error'); }
         }
@@ -886,7 +896,7 @@
         });
         document.getElementById('chat-input').addEventListener('input', function() {
             this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            this.style.height = Math.min(this.scrollHeight, CHAT_INPUT_MAX_HEIGHT_PX) + 'px';
         });
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && selectedConversation) exitChatRoom();
@@ -895,11 +905,11 @@
         // === Init ===
         loadConfig();
         loadMessages();
-        setInterval(loadMessages, 10000);
+        setInterval(loadMessages, MESSAGE_POLL_INTERVAL_MS);
         setInterval(function() {
             const v = document.getElementById('view-auth');
             if (v && v.classList.contains('active')) loadAuthStatus();
-        }, 3000);
+        }, AUTH_POLL_INTERVAL_MS);
     </script>
 </body>
 </html>

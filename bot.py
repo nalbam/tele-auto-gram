@@ -50,6 +50,25 @@ class AuthTimeoutError(Exception):
     """Raised when auth input is not received within the timeout"""
 
 
+def _parse_delay_config(cfg: dict[str, Any], min_key: str, max_key: str,
+                        default_min: float, default_max: float) -> tuple[float, float]:
+    """Parse and validate min/max delay from config, with fallback defaults.
+
+    Returns (delay_min, delay_max) with min ≤ max guaranteed.
+    """
+    try:
+        delay_min = float(cfg.get(min_key, default_min))
+    except (TypeError, ValueError):
+        delay_min = default_min
+    try:
+        delay_max = float(cfg.get(max_key, default_max))
+    except (TypeError, ValueError):
+        delay_max = default_max
+    if delay_min > delay_max:
+        delay_min, delay_max = delay_max, delay_min
+    return delay_min, delay_max
+
+
 def get_auth_state() -> dict[str, Any]:
     """Return a copy of auth state (thread-safe)"""
     with _state_lock:
@@ -294,16 +313,10 @@ async def _delayed_read_receipt(cl: TelegramClient, event: Any, msg_cfg: dict[st
         event: Telethon NewMessage event
         msg_cfg: config dict with READ_RECEIPT_DELAY_MIN/MAX
     """
-    try:
-        rr_min = float(msg_cfg.get('READ_RECEIPT_DELAY_MIN', DEFAULT_READ_RECEIPT_DELAY_MIN))
-    except (TypeError, ValueError):
-        rr_min = DEFAULT_READ_RECEIPT_DELAY_MIN
-    try:
-        rr_max = float(msg_cfg.get('READ_RECEIPT_DELAY_MAX', DEFAULT_READ_RECEIPT_DELAY_MAX))
-    except (TypeError, ValueError):
-        rr_max = DEFAULT_READ_RECEIPT_DELAY_MAX
-    if rr_min > rr_max:
-        rr_min, rr_max = rr_max, rr_min
+    rr_min, rr_max = _parse_delay_config(
+        msg_cfg, 'READ_RECEIPT_DELAY_MIN', 'READ_RECEIPT_DELAY_MAX',
+        DEFAULT_READ_RECEIPT_DELAY_MIN, DEFAULT_READ_RECEIPT_DELAY_MAX
+    )
     read_delay = random.uniform(rr_min, rr_max)
     await asyncio.sleep(read_delay)
     try:
@@ -337,16 +350,10 @@ async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sen
         sender_name, existing_messages, sender_profile, system_prompt, msg_cfg
     )
 
-    try:
-        delay_min = float(msg_cfg.get('RESPONSE_DELAY_MIN', DEFAULT_DELAY_MIN))
-    except (TypeError, ValueError):
-        delay_min = DEFAULT_DELAY_MIN
-    try:
-        delay_max = float(msg_cfg.get('RESPONSE_DELAY_MAX', DEFAULT_DELAY_MAX))
-    except (TypeError, ValueError):
-        delay_max = DEFAULT_DELAY_MAX
-    if delay_min > delay_max:
-        delay_min, delay_max = delay_max, delay_min
+    delay_min, delay_max = _parse_delay_config(
+        msg_cfg, 'RESPONSE_DELAY_MIN', 'RESPONSE_DELAY_MAX',
+        DEFAULT_DELAY_MIN, DEFAULT_DELAY_MAX
+    )
     delay = random.uniform(delay_min, delay_max)
     logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
     await asyncio.sleep(delay)
@@ -378,6 +385,77 @@ async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sen
     message_text = event.message.message
     logger.debug("Received message from %s: %s", sender_name, message_text)
     logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
+
+
+async def _handle_new_message(cl: TelegramClient, event: Any) -> None:
+    """Handle incoming messages with debounce for consecutive messages.
+
+    Phase A (non-cancellable): store message, send read receipt, sync history.
+    Phase B (cancellable): cancel any pending response for this sender,
+    then create a new response task that sees all accumulated messages.
+
+    Args:
+        cl: TelegramClient instance
+        event: Telethon NewMessage event
+    """
+    if not event.is_private:
+        return
+
+    sender = await event.get_sender()
+
+    if isinstance(sender, User):
+        sender_name = sender.first_name or ''
+        if sender.last_name:
+            sender_name += ' ' + sender.last_name
+        sender_name = sender_name.strip() or str(sender.id)
+    else:
+        sender_name = str(sender.id)
+
+    message_text = event.message.message
+
+    if not message_text:
+        return
+
+    # --- Phase A: Non-cancellable (always complete) ---
+
+    msg_cfg = await asyncio.to_thread(config.load_config)
+
+    # Store received message immediately
+    await asyncio.to_thread(
+        storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
+    )
+
+    # Read receipt (fire & forget)
+    asyncio.create_task(_delayed_read_receipt(cl, event, msg_cfg))
+
+    # Fetch Telegram history if not yet synced for this sender
+    history_synced = await asyncio.to_thread(storage.is_history_synced, sender.id)
+    if not history_synced:
+        imported = await _fetch_telegram_history(cl, sender.id, sender_name, event.message.id)
+        await asyncio.to_thread(storage.mark_history_synced, sender.id)
+        if imported:
+            await _update_sender_profile(sender.id, sender_name, msg_cfg,
+                                         use_all_messages=True, messages=imported)
+
+    # --- Phase B: Cancel previous + create new response task ---
+
+    sender_id = sender.id
+
+    existing_task = _pending_responses.get(sender_id)
+    if existing_task is not None and not existing_task.done():
+        existing_task.cancel()
+        logger.debug("Cancelled pending response for %s (new message arrived)", sender_name)
+
+    task = asyncio.create_task(_respond_to_sender(cl, event, sender_id, sender_name))
+    _pending_responses[sender_id] = task
+
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass  # Normal: cancelled by a newer message
+    finally:
+        if _pending_responses.get(sender_id) is task:
+            del _pending_responses[sender_id]
 
 
 async def _authenticate(cl: TelegramClient, phone: str, loop: asyncio.AbstractEventLoop) -> None:
@@ -463,71 +541,8 @@ async def start_bot() -> None:
     phone = cfg['PHONE']
 
     @cl.on(events.NewMessage(incoming=True, from_users=None))
-    async def handle_new_message(event):
-        """Handle incoming messages with debounce for consecutive messages.
-
-        Phase A (non-cancellable): store message, send read receipt, sync history.
-        Phase B (cancellable): cancel any pending response for this sender,
-        then create a new response task that sees all accumulated messages.
-        """
-        if not event.is_private:
-            return
-
-        sender = await event.get_sender()
-
-        if isinstance(sender, User):
-            sender_name = sender.first_name or ''
-            if sender.last_name:
-                sender_name += ' ' + sender.last_name
-            sender_name = sender_name.strip() or str(sender.id)
-        else:
-            sender_name = str(sender.id)
-
-        message_text = event.message.message
-
-        if not message_text:
-            return
-
-        # --- Phase A: Non-cancellable (always complete) ---
-
-        msg_cfg = await asyncio.to_thread(config.load_config)
-
-        # Store received message immediately
-        await asyncio.to_thread(
-            storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
-        )
-
-        # Read receipt (fire & forget)
-        asyncio.create_task(_delayed_read_receipt(cl, event, msg_cfg))
-
-        # Fetch Telegram history if not yet synced for this sender
-        history_synced = await asyncio.to_thread(storage.is_history_synced, sender.id)
-        if not history_synced:
-            imported = await _fetch_telegram_history(cl, sender.id, sender_name, event.message.id)
-            await asyncio.to_thread(storage.mark_history_synced, sender.id)
-            if imported:
-                await _update_sender_profile(sender.id, sender_name, msg_cfg,
-                                             use_all_messages=True, messages=imported)
-
-        # --- Phase B: Cancel previous + create new response task ---
-
-        sender_id = sender.id
-
-        existing_task = _pending_responses.get(sender_id)
-        if existing_task is not None and not existing_task.done():
-            existing_task.cancel()
-            logger.debug("Cancelled pending response for %s (new message arrived)", sender_name)
-
-        task = asyncio.create_task(_respond_to_sender(cl, event, sender_id, sender_name))
-        _pending_responses[sender_id] = task
-
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass  # Normal: cancelled by a newer message
-        finally:
-            if _pending_responses.get(sender_id) is task:
-                del _pending_responses[sender_id]
+    async def on_new_message(event):
+        await _handle_new_message(cl, event)
 
     await cl.connect()
     loop = asyncio.get_event_loop()

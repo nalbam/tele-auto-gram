@@ -157,3 +157,64 @@ def test_response_delay_from_env(monkeypatch):
     cfg = config.load_config()
     assert cfg['RESPONSE_DELAY_MIN'] == 5
     assert cfg['RESPONSE_DELAY_MAX'] == 15
+
+
+def test_save_config_atomic_write(tmp_path):
+    """save_config uses atomic write (no partial file on crash)"""
+    import config
+    data = {'API_ID': '111', 'PHONE': '+999'}
+    config.save_config(data)
+    assert os.path.exists(config.CONFIG_FILE)
+    # File should be readable and valid JSON
+    with open(config.CONFIG_FILE, 'r') as f:
+        loaded = json.load(f)
+    assert loaded['API_ID'] == '111'
+
+
+def test_save_config_file_permissions(tmp_path):
+    """save_config creates file with 0o600 permissions"""
+    import config
+    config.save_config({'key': 'value'})
+    mode = os.stat(config.CONFIG_FILE).st_mode & 0o777
+    assert mode == 0o600
+
+
+def test_save_identity_file_permissions(tmp_path):
+    """save_identity creates file with 0o600 permissions"""
+    import config
+    config.save_identity('test content')
+    mode = os.stat(config.IDENTITY_FILE).st_mode & 0o777
+    assert mode == 0o600
+
+
+def test_secure_write_cleans_up_on_error(tmp_path):
+    """_secure_write removes temp file on write failure"""
+    import config
+    import glob
+
+    filepath = str(tmp_path / 'fail_test.json')
+
+    def bad_writer(f):
+        raise RuntimeError("write error")
+
+    with pytest.raises(RuntimeError):
+        config._secure_write(filepath, bad_writer)
+
+    # Target file should not exist
+    assert not os.path.exists(filepath)
+    # No leftover temp files
+    temps = glob.glob(str(tmp_path / '*.tmp'))
+    assert len(temps) == 0
+
+
+def test_migrate_system_prompt_uses_secure_write(tmp_path):
+    """_migrate_system_prompt uses atomic write for config.json update"""
+    import config
+    with open(config.CONFIG_FILE, 'w') as f:
+        json.dump({'SYSTEM_PROMPT': 'Migrated', 'API_ID': '123'}, f)
+
+    config.load_identity()
+
+    # Config file should have restricted permissions after migration
+    mode = os.stat(config.CONFIG_FILE).st_mode & 0o777
+    assert mode == 0o600
