@@ -102,12 +102,12 @@ def build_chat_messages(messages: list[dict[str, Any]], system_prompt: str,
         List of OpenAI message dicts with 'role' and 'content'
     """
     # Build system message
-    system_parts = []
-    if system_prompt:
-        system_parts.append(system_prompt)
+    system_parts = [system_prompt if system_prompt else DEFAULT_SYSTEM_PROMPT]
     if sender_profile:
         system_parts.append(f'\n[Profile: {sender_name}]\n{sender_profile}')
-    system_content = '\n'.join(system_parts) if system_parts else DEFAULT_SYSTEM_PROMPT
+    else:
+        system_parts.append(f'\n[Profile: {sender_name}]\n(No prior information — first contact)')
+    system_content = '\n'.join(system_parts)
 
     chat: list[dict[str, str]] = [{'role': 'system', 'content': system_content}]
 

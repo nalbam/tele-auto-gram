@@ -82,7 +82,8 @@ class TestBuildChatMessages:
         result = ai.build_chat_messages([], 'Be friendly', 'Alice')
         assert len(result) == 1
         assert result[0]['role'] == 'system'
-        assert result[0]['content'] == 'Be friendly'
+        assert 'Be friendly' in result[0]['content']
+        assert 'first contact' in result[0]['content']
 
     def test_direction_mapping(self):
         """Maps received→user, sent→assistant"""
@@ -134,7 +135,8 @@ class TestBuildChatMessages:
         """Uses default system prompt when none provided"""
         import ai
         result = ai.build_chat_messages([], '', 'Alice')
-        assert result[0]['content'] == ai.DEFAULT_SYSTEM_PROMPT
+        assert ai.DEFAULT_SYSTEM_PROMPT in result[0]['content']
+        assert 'first contact' in result[0]['content']
 
     def test_limit(self):
         """Respects message limit"""
