@@ -123,6 +123,10 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
+        .conversation-item.active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
         .conversation-sender {
             font-weight: 600;
             font-size: 14px;
@@ -507,6 +511,96 @@
             font-weight: 600;
         }
 
+        /* Message compose area */
+        .compose-area {
+            display: none;
+            padding: 20px;
+            border-top: 2px solid #f3f4f6;
+            margin-top: 16px;
+        }
+
+        .compose-area.active {
+            display: block;
+        }
+
+        .compose-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .compose-to {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .btn-back {
+            background: #f3f4f6;
+            color: #374151;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-back:hover {
+            background: #e5e7eb;
+        }
+
+        .compose-input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .compose-input-row textarea {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            transition: border-color 0.2s;
+        }
+
+        .compose-input-row textarea:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+        }
+
+        .btn-send {
+            background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-send:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
         /* View Toggle */
         .view-container {
             display: none;
@@ -596,12 +690,22 @@
                 <div class="card">
                     <div class="card-header">
                         <span class="card-icon">📨</span>
-                        <h2 class="card-title">최근 메시지 내역</h2>
+                        <h2 class="card-title" id="conversations-title">최근 메시지 내역</h2>
                     </div>
                     <div id="message-list" class="message-list">
                         <div class="empty-state">
                             <div class="empty-icon">💬</div>
                             <div class="empty-text">아직 메시지가 없습니다</div>
+                        </div>
+                    </div>
+                    <div class="compose-area" id="compose-area">
+                        <div class="compose-header">
+                            <span class="compose-to" id="compose-to"></span>
+                            <button class="btn-back" onclick="clearConversationFilter()">전체 대화</button>
+                        </div>
+                        <div class="compose-input-row">
+                            <textarea id="compose-text" placeholder="메시지를 입력하세요..." rows="1"></textarea>
+                            <button class="btn-send" id="btn-send" onclick="sendManualMessage()">전송</button>
                         </div>
                     </div>
                 </div>
@@ -687,6 +791,10 @@
     </div>
 
     <script>
+        // Conversation selection state
+        let selectedConversation = null; // { sender_id, sender_name }
+        let allMessages = [];
+
         // View Management
         function switchView(viewName) {
             // Update navigation buttons
@@ -739,75 +847,166 @@
         async function loadMessages() {
             try {
                 const response = await fetch('/api/messages');
-                const messages = await response.json();
-                
-                const messageList = document.getElementById('message-list');
-                
-                if (messages.length === 0) {
-                    messageList.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">💬</div>
-                            <div class="empty-text">아직 메시지가 없습니다</div>
-                        </div>
-                    `;
-                    updateRecentConversations([]);
-                    return;
-                }
-                
-                messageList.innerHTML = messages.reverse().map(msg => {
-                    const date = new Date(msg.timestamp);
-                    const timeStr = date.toLocaleString('ko-KR');
-                    
-                    return `
-                        <div class="message-item ${msg.direction}">
-                            <div class="message-header">
-                                <div class="message-sender-row">
-                                    <span class="message-sender">${escapeHtml(msg.sender)}</span>
-                                    <span class="message-direction ${msg.direction}">${msg.direction === 'received' ? '수신' : '발신'}</span>
-                                </div>
-                                <span class="message-time">${timeStr}</span>
-                            </div>
-                            <div class="message-text">${escapeHtml(msg.text)}</div>
-                            ${msg.summary ? `<div class="message-summary">요약: ${escapeHtml(msg.summary)}</div>` : ''}
-                        </div>
-                    `;
-                }).join('');
+                allMessages = await response.json();
 
-                // Update recent conversations in sidebar
-                updateRecentConversations(messages);
+                // Update recent conversations in sidebar (use reversed copy)
+                const reversed = [...allMessages].reverse();
+                updateRecentConversations(reversed);
+
+                renderMessages();
             } catch (error) {
                 console.error('Error loading messages:', error);
+            }
+        }
+
+        function renderMessages() {
+            const messageList = document.getElementById('message-list');
+            const titleEl = document.getElementById('conversations-title');
+            const composeArea = document.getElementById('compose-area');
+
+            let displayMessages = [...allMessages];
+
+            if (selectedConversation) {
+                displayMessages = displayMessages.filter(
+                    msg => msg.sender_id === selectedConversation.sender_id
+                );
+                titleEl.textContent = selectedConversation.sender_name + ' 대화';
+                composeArea.classList.add('active');
+                document.getElementById('compose-to').textContent =
+                    selectedConversation.sender_name + '에게 보내기';
+            } else {
+                titleEl.textContent = '최근 메시지 내역';
+                composeArea.classList.remove('active');
+            }
+
+            if (displayMessages.length === 0) {
+                messageList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">💬</div>
+                        <div class="empty-text">아직 메시지가 없습니다</div>
+                    </div>
+                `;
+                return;
+            }
+
+            messageList.innerHTML = displayMessages.reverse().map(msg => {
+                const date = new Date(msg.timestamp);
+                const timeStr = date.toLocaleString('ko-KR');
+
+                return `
+                    <div class="message-item ${msg.direction}">
+                        <div class="message-header">
+                            <div class="message-sender-row">
+                                <span class="message-sender">${escapeHtml(msg.sender)}</span>
+                                <span class="message-direction ${msg.direction}">${msg.direction === 'received' ? '수신' : '발신'}</span>
+                            </div>
+                            <span class="message-time">${timeStr}</span>
+                        </div>
+                        <div class="message-text">${escapeHtml(msg.text)}</div>
+                        ${msg.summary ? `<div class="message-summary">요약: ${escapeHtml(msg.summary)}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            // Scroll to bottom when viewing a conversation
+            if (selectedConversation) {
+                messageList.scrollTop = messageList.scrollHeight;
             }
         }
 
         // Update recent conversations in sidebar
         function updateRecentConversations(messages) {
             const container = document.getElementById('recent-conversations');
-            
+
             if (messages.length === 0) {
                 container.innerHTML = '';
                 return;
             }
 
-            // Group by sender and get latest 5
+            // Group by sender_id (skip 'Me' sent messages without a distinct sender)
             const conversationMap = new Map();
             messages.forEach(msg => {
-                if (!conversationMap.has(msg.sender)) {
-                    conversationMap.set(msg.sender, msg);
+                if (msg.sender === 'Me' && !msg.sender_id) return;
+                const key = msg.sender_id || msg.sender;
+                if (!conversationMap.has(key)) {
+                    conversationMap.set(key, msg);
                 }
             });
 
-            const recentConversations = Array.from(conversationMap.values()).slice(0, 5);
+            const recentConversations = Array.from(conversationMap.values())
+                .filter(msg => msg.sender !== 'Me')
+                .slice(0, 5);
+
+            const selectedId = selectedConversation ? selectedConversation.sender_id : null;
 
             container.innerHTML = `
                 <div class="conversation-header">최근 대화</div>
-                ${recentConversations.map(msg => `
-                    <div class="conversation-item">
-                        <div class="conversation-sender">${escapeHtml(msg.sender)}</div>
-                        <div class="conversation-preview">${escapeHtml(msg.text.substring(0, 30))}${msg.text.length > 30 ? '...' : ''}</div>
-                    </div>
-                `).join('')}
+                ${recentConversations.map(msg => {
+                    const isActive = selectedId && msg.sender_id === selectedId;
+                    const senderId = msg.sender_id || '';
+                    const senderName = msg.sender;
+                    return `
+                        <div class="conversation-item${isActive ? ' active' : ''}"
+                             onclick="selectConversation(${senderId}, '${escapeHtml(senderName).replace(/'/g, "\\'")}')">
+                            <div class="conversation-sender">${escapeHtml(senderName)}</div>
+                            <div class="conversation-preview">${escapeHtml(msg.text.substring(0, 30))}${msg.text.length > 30 ? '...' : ''}</div>
+                        </div>
+                    `;
+                }).join('')}
             `;
+        }
+
+        function selectConversation(senderId, senderName) {
+            if (!senderId) return;
+            selectedConversation = { sender_id: senderId, sender_name: senderName };
+            switchView('conversations');
+            renderMessages();
+            // Re-highlight active conversation in sidebar
+            const reversed = [...allMessages].reverse();
+            updateRecentConversations(reversed);
+        }
+
+        function clearConversationFilter() {
+            selectedConversation = null;
+            document.getElementById('compose-text').value = '';
+            renderMessages();
+            const reversed = [...allMessages].reverse();
+            updateRecentConversations(reversed);
+        }
+
+        async function sendManualMessage() {
+            if (!selectedConversation) return;
+
+            const textarea = document.getElementById('compose-text');
+            const text = textarea.value.trim();
+            if (!text) return;
+
+            const btn = document.getElementById('btn-send');
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/messages/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: selectedConversation.sender_id,
+                        text: text
+                    })
+                });
+
+                if (response.ok) {
+                    textarea.value = '';
+                    textarea.style.height = 'auto';
+                    await loadMessages();
+                } else {
+                    const data = await response.json();
+                    showAlert(data.message || '메시지 전송에 실패했습니다', 'error');
+                }
+            } catch (error) {
+                showAlert('메시지 전송 중 오류가 발생했습니다', 'error');
+            } finally {
+                btn.disabled = false;
+            }
         }
 
         // Save configuration
@@ -1019,6 +1218,20 @@
                 showAlert('비밀번호 제출 중 오류가 발생했습니다', 'error');
             }
         }
+
+        // Compose textarea: Enter to send, Shift+Enter for newline
+        document.getElementById('compose-text').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendManualMessage();
+            }
+        });
+
+        // Auto-resize compose textarea
+        document.getElementById('compose-text').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
 
         // Initialize
         loadConfig();

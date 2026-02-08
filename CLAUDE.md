@@ -71,7 +71,8 @@ GitHub Actions (`docker-build.yml`) builds and pushes Docker images to `ghcr.io/
 - `GET /` - Web UI
 - `GET /api/config` - Get current config (sensitive fields masked)
 - `POST /api/config` - Save config to `data/config.json`
-- `GET /api/messages` - Get stored messages
+- `GET /api/messages` - Get stored messages (includes `sender_id` for reply support)
+- `POST /api/messages/send` - Send manual message: `{ user_id: int, text: string }`
 - `GET /api/auth/status` - Get auth state (`disconnected`|`waiting_code`|`waiting_password`|`authorized`|`error`)
 - `POST /api/auth/code` - Submit Telegram auth code
 - `POST /api/auth/password` - Submit 2FA password

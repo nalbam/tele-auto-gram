@@ -79,6 +79,36 @@ def get_messages():
     return jsonify(messages)
 
 
+@app.route('/api/messages/send', methods=['POST'])
+def send_message():
+    """Send a message to a Telegram user"""
+    data = request.get_json()
+    user_id = data.get('user_id')
+    text = (data.get('text') or '').strip()
+
+    if not user_id or not text:
+        return jsonify({'status': 'error', 'message': 'user_id and text are required'}), 400
+
+    if bot.auth_state.get('status') != 'authorized':
+        return jsonify({'status': 'error', 'message': 'Bot is not authorized'}), 400
+
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': 'Invalid user_id'}), 400
+
+    try:
+        bot.send_message_to_user(user_id, text)
+    except RuntimeError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 503
+    except Exception as e:
+        print(f"Error sending message: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to send message'}), 500
+
+    storage.add_message('sent', 'Me', text, sender_id=user_id)
+    return jsonify({'status': 'success'})
+
+
 @app.route('/api/auth/status', methods=['GET'])
 def get_auth_status():
     """Get current authentication status"""

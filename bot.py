@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 import threading
 from telethon import TelegramClient, events
 from telethon.tl.types import User
@@ -16,6 +17,7 @@ import ai
 logger = logging.getLogger(__name__)
 
 client = None
+_bot_loop = None
 
 # Shared authentication state
 auth_state = {
@@ -67,9 +69,32 @@ async def _wait_for_password(loop):
     return password
 
 
+def send_message_to_user(user_id, text):
+    """Send a message to a Telegram user from the Flask thread.
+
+    Uses asyncio.run_coroutine_threadsafe to bridge Flask's sync context
+    to the bot's asyncio event loop running in a daemon thread.
+
+    Args:
+        user_id: Telegram user ID (int)
+        text: message text to send
+
+    Raises:
+        RuntimeError: if bot loop or client is not available
+        Exception: propagated from Telethon send_message
+    """
+    if _bot_loop is None or client is None:
+        raise RuntimeError("Bot is not running")
+
+    future = asyncio.run_coroutine_threadsafe(
+        client.send_message(user_id, text), _bot_loop
+    )
+    return future.result(timeout=10)
+
+
 async def start_bot():
     """Start the Telegram bot"""
-    global client
+    global client, _bot_loop
 
     cfg = config.load_config()
 
@@ -104,7 +129,7 @@ async def start_bot():
         message_text = event.message.message
 
         # Store received message
-        storage.add_message('received', sender_name, message_text)
+        storage.add_message('received', sender_name, message_text, sender_id=sender.id)
 
         # Generate response
         response_message = None
@@ -137,10 +162,13 @@ async def start_bot():
                 'AUTO_RESPONSE_MESSAGE',
                 '잠시 후 응답드리겠습니다. 조금만 기다려주세요.'
             )
+        delay = random.uniform(3.0, 10.0)
+        logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
+        await asyncio.sleep(delay)
         await event.respond(response_message)
 
         # Store sent response
-        storage.add_message('sent', 'Me', response_message)
+        storage.add_message('sent', 'Me', response_message, sender_id=sender.id)
 
         logger.debug("Received message from %s: %s", sender_name, message_text)
         logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
@@ -148,6 +176,7 @@ async def start_bot():
     # Manual authentication flow
     await client.connect()
     loop = asyncio.get_event_loop()
+    _bot_loop = loop
 
     if await client.is_user_authorized():
         auth_state['status'] = 'authorized'

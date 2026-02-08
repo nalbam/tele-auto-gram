@@ -64,17 +64,18 @@ def get_messages_by_sender(sender_name, limit=20):
     return sender_messages[-limit:]
 
 
-def add_message(direction, sender, text, summary=None):
+def add_message(direction, sender, text, summary=None, sender_id=None):
     """Add a message to storage
-    
+
     Args:
         direction: 'received' or 'sent'
         sender: sender name or id
         text: message text
         summary: optional message summary
+        sender_id: optional Telegram user ID for reply support
     """
     messages = load_messages()
-    
+
     message = {
         'timestamp': datetime.now().isoformat(),
         'direction': direction,
@@ -82,8 +83,11 @@ def add_message(direction, sender, text, summary=None):
         'text': text,
         'summary': summary
     }
-    
+
+    if sender_id is not None:
+        message['sender_id'] = sender_id
+
     messages.append(message)
     save_messages(messages)
-    
+
     return message
