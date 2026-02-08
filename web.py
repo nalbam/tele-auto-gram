@@ -1,10 +1,14 @@
+import logging
 import os
 import secrets
+from typing import Any
 
 from flask import Flask, render_template, request, jsonify
 import config
 import storage
 import bot
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', secrets.token_hex(32))
@@ -12,6 +16,17 @@ app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1 MB
 
 MASKED_FIELDS = ('API_HASH', 'OPENAI_API_KEY')
 WEB_TOKEN = os.getenv('WEB_TOKEN', '')
+if not WEB_TOKEN:
+    logger.warning("WEB_TOKEN is not set — API endpoints are unprotected")
+
+
+@app.before_request
+def check_content_type():
+    """Reject POST requests to /api/* without application/json Content-Type"""
+    if request.method == 'POST' and request.path.startswith('/api/'):
+        content_type = request.content_type or ''
+        if 'application/json' not in content_type:
+            return jsonify({'status': 'error', 'message': 'Content-Type must be application/json'}), 415
 
 
 @app.before_request
@@ -27,7 +42,7 @@ def check_auth_token():
         return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
 
 
-def mask_value(value):
+def mask_value(value: str | None) -> str:
     """Mask a sensitive value with proportional visible characters.
 
     Visible chars per side = length // 8, capped at 4.
@@ -47,7 +62,7 @@ def mask_value(value):
     return value[:visible] + '*' * mask_count + value[-visible:]
 
 
-def is_masked(value):
+def is_masked(value: str | None) -> bool:
     """Check if a value is a masked placeholder"""
     if not value:
         return False
@@ -98,7 +113,7 @@ def save_config():
         return jsonify({'status': 'success'})
     except Exception as e:
         # Log the error server-side but return generic message to client
-        print(f"Error saving configuration: {e}")
+        logger.error("Error saving configuration: %s", e)
         return jsonify({'status': 'error', 'message': 'Failed to save configuration'}), 500
 
 @app.route('/api/messages', methods=['GET'])
@@ -123,7 +138,7 @@ def send_message():
     if len(text) > 4096:
         return jsonify({'status': 'error', 'message': 'Message too long (max 4096 characters)'}), 400
 
-    if bot.auth_state.get('status') != 'authorized':
+    if bot.get_auth_state().get('status') != 'authorized':
         return jsonify({'status': 'error', 'message': 'Bot is not authorized'}), 400
 
     try:
@@ -133,10 +148,10 @@ def send_message():
 
     try:
         bot.send_message_to_user(user_id, text)
-    except RuntimeError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 503
+    except RuntimeError:
+        return jsonify({'status': 'error', 'message': 'Bot is not available'}), 503
     except Exception as e:
-        print(f"Error sending message: {e}")
+        logger.error("Error sending message: %s", e)
         return jsonify({'status': 'error', 'message': 'Failed to send message'}), 500
 
     storage.add_message('sent', 'Me', text, sender_id=user_id)
@@ -161,14 +176,14 @@ def save_identity():
         config.save_identity(content)
         return jsonify({'status': 'success'})
     except Exception as e:
-        print(f"Error saving identity: {e}")
+        logger.error("Error saving identity: %s", e)
         return jsonify({'status': 'error', 'message': 'Failed to save identity'}), 500
 
 
 @app.route('/api/auth/status', methods=['GET'])
 def get_auth_status():
     """Get current authentication status"""
-    return jsonify(bot.auth_state)
+    return jsonify(bot.get_auth_state())
 
 
 @app.route('/api/auth/code', methods=['POST'])
@@ -192,15 +207,15 @@ def submit_auth_password():
     bot.submit_auth_password(password)
     return jsonify({'status': 'success'})
 
-def run_web_ui(host=None, port=None):
+def run_web_ui(host: str | None = None, port: int | None = None) -> None:
     """Run the web UI server"""
     host = host or os.getenv('HOST', '0.0.0.0')
     try:
         port = port or int(os.getenv('PORT', '5000'))
     except (TypeError, ValueError):
         port = 5000
-    print(f"\n Web UI is running at http://{host}:{port}")
-    print("Open this URL in your browser to configure and monitor the bot\n")
+    logger.info("Web UI is running at http://%s:%s", host, port)
+    logger.info("Open this URL in your browser to configure and monitor the bot")
     app.run(host=host, port=port, debug=False)
 
 if __name__ == '__main__':

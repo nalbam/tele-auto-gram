@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+from typing import Any
 from dotenv import load_dotenv
 
 load_dotenv('.env')
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 CONFIG_FILE = 'data/config.json'
 
 
-def _safe_int(value, default):
+def _safe_int(value: Any, default: int) -> int:
     """Safely convert value to int, returning default on failure"""
     try:
         return int(value)
@@ -19,11 +20,11 @@ def _safe_int(value, default):
         return default
 
 
-def ensure_data_dir():
+def ensure_data_dir() -> None:
     """Ensure data directory exists"""
     os.makedirs('data', exist_ok=True)
 
-def load_config():
+def load_config() -> dict[str, Any]:
     """Load configuration from file or environment"""
     ensure_data_dir()
 
@@ -49,7 +50,7 @@ def load_config():
 
     return config
 
-def save_config(config):
+def save_config(config: dict[str, Any]) -> None:
     """Save configuration to file"""
     ensure_data_dir()
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -63,7 +64,7 @@ You are a friendly conversational partner. Respond naturally and concisely.
 """.lstrip()
 
 
-def load_identity():
+def load_identity() -> str:
     """Load identity prompt from data/IDENTITY.md, auto-create if missing.
 
     Migrates SYSTEM_PROMPT from config.json on first call if IDENTITY.md
@@ -78,7 +79,7 @@ def load_identity():
         return f.read()
 
 
-def _migrate_system_prompt():
+def _migrate_system_prompt() -> None:
     """Migrate SYSTEM_PROMPT from config.json to IDENTITY.md"""
     if not os.path.exists(CONFIG_FILE):
         return
@@ -94,14 +95,14 @@ def _migrate_system_prompt():
             json.dump(file_config, f, indent=2, ensure_ascii=False)
 
 
-def save_identity(content):
+def save_identity(content: str) -> None:
     """Save identity prompt to data/IDENTITY.md"""
     ensure_data_dir()
     with open(IDENTITY_FILE, 'w', encoding='utf-8') as f:
         f.write(content)
 
 
-def is_configured():
+def is_configured() -> bool:
     """Check if bot is configured"""
     config = load_config()
-    return config.get('API_ID') and config.get('API_HASH') and config.get('PHONE')
+    return bool(config.get('API_ID') and config.get('API_HASH') and config.get('PHONE'))

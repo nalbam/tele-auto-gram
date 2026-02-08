@@ -1,23 +1,42 @@
 import logging
+import threading
+from typing import Any
+
 from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
+# Constants
+DEFAULT_MODEL = 'gpt-4o-mini'
+DEFAULT_SYSTEM_PROMPT = 'You are a friendly conversational partner. Respond naturally and concisely.'
+
+SUMMARIZE_MAX_TOKENS = 300
+SUMMARIZE_TEMPERATURE = 0.5
+
+RESPONSE_MAX_TOKENS = 500
+RESPONSE_TEMPERATURE = 0.7
+
+PROFILE_MAX_TOKENS = 500
+PROFILE_TEMPERATURE = 0.3
+PROFILE_RECENT_MESSAGES_LIMIT = 10
+
 # Singleton client: reuse across calls, recreate only if api_key changes
 _client = None
 _client_api_key = None
+_client_lock = threading.Lock()
 
 
-def _get_client(api_key):
+def _get_client(api_key: str) -> AsyncOpenAI:
     """Get or create AsyncOpenAI client (reuses if api_key unchanged)"""
     global _client, _client_api_key
-    if _client is None or _client_api_key != api_key:
-        _client = AsyncOpenAI(api_key=api_key)
-        _client_api_key = api_key
-    return _client
+    with _client_lock:
+        if _client is None or _client_api_key != api_key:
+            _client = AsyncOpenAI(api_key=api_key)
+            _client_api_key = api_key
+        return _client
 
 
-async def summarize_conversation(messages, sender_name, api_key='', model='gpt-4o-mini'):
+async def summarize_conversation(messages: list[dict[str, Any]], sender_name: str, api_key: str = '', model: str = DEFAULT_MODEL) -> str:
     """Summarize recent conversation with a sender using OpenAI
 
     Args:
@@ -57,8 +76,8 @@ async def summarize_conversation(messages, sender_name, api_key='', model='gpt-4
                     'content': conversation_text
                 }
             ],
-            max_tokens=300,
-            temperature=0.5,
+            max_tokens=SUMMARIZE_MAX_TOKENS,
+            temperature=SUMMARIZE_TEMPERATURE,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -66,9 +85,9 @@ async def summarize_conversation(messages, sender_name, api_key='', model='gpt-4
         return ''
 
 
-async def generate_response(system_prompt, conversation_summary, sender_name,
-                            incoming_message, sender_profile='',
-                            api_key='', model='gpt-4o-mini'):
+async def generate_response(system_prompt: str, conversation_summary: str, sender_name: str,
+                            incoming_message: str, sender_profile: str = '',
+                            api_key: str = '', model: str = DEFAULT_MODEL) -> str | None:
     """Generate an AI response based on context
 
     Args:
@@ -98,9 +117,7 @@ async def generate_response(system_prompt, conversation_summary, sender_name,
             f'\n[Recent conversation summary with {sender_name}]\n{conversation_summary}'
         )
 
-    system_message = '\n'.join(system_parts) if system_parts else (
-        'You are a friendly conversational partner. Respond naturally and concisely.'
-    )
+    system_message = '\n'.join(system_parts) if system_parts else DEFAULT_SYSTEM_PROMPT
 
     try:
         client = _get_client(api_key)
@@ -110,8 +127,8 @@ async def generate_response(system_prompt, conversation_summary, sender_name,
                 {'role': 'system', 'content': system_message},
                 {'role': 'user', 'content': incoming_message}
             ],
-            max_tokens=500,
-            temperature=0.7,
+            max_tokens=RESPONSE_MAX_TOKENS,
+            temperature=RESPONSE_TEMPERATURE,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -119,8 +136,8 @@ async def generate_response(system_prompt, conversation_summary, sender_name,
         return None
 
 
-async def update_sender_profile(current_profile, recent_messages, sender_name,
-                                api_key='', model='gpt-4o-mini'):
+async def update_sender_profile(current_profile: str, recent_messages: list[dict[str, Any]], sender_name: str,
+                                api_key: str = '', model: str = DEFAULT_MODEL) -> str:
     """Update sender profile by extracting key info from recent conversation.
 
     Args:
@@ -141,7 +158,7 @@ async def update_sender_profile(current_profile, recent_messages, sender_name,
 
     conversation_text = '\n'.join(
         f"{'Me' if msg['direction'] == 'sent' else sender_name}: {msg['text']}"
-        for msg in recent_messages[-10:]
+        for msg in recent_messages[-PROFILE_RECENT_MESSAGES_LIMIT:]
     )
 
     prompt_parts = [
@@ -183,8 +200,8 @@ async def update_sender_profile(current_profile, recent_messages, sender_name,
                 {'role': 'system', 'content': '\n'.join(prompt_parts)},
                 {'role': 'user', 'content': 'Update the profile now.'}
             ],
-            max_tokens=500,
-            temperature=0.3,
+            max_tokens=PROFILE_MAX_TOKENS,
+            temperature=PROFILE_TEMPERATURE,
         )
         updated = response.choices[0].message.content.strip()
         return updated if updated else current_profile

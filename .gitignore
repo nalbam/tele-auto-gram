@@ -1,14 +1,10 @@
-*.session
-*.session-journal
-
-# local env files
-.env*.local
-.env
-
+# Python bytecode
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -25,13 +21,42 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-data/
+
+# Virtual environments
 venv/
 env/
 ENV/
-.venv
+.venv/
 
-# claude
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment files
+.env
+.env*.local
+
+# Telethon session files
+*.session
+*.session-journal
+
+# Application data
+data/
+
+# Application logs / pid
+tele-auto-gram.log
+tele-auto-gram.pid
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Claude
 .claude/
 .context-*.md
 .context.md

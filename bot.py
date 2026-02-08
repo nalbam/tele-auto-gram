@@ -2,6 +2,7 @@ import asyncio
 import logging
 import random
 import threading
+from typing import Any
 from telethon import TelegramClient, events
 from telethon.tl.types import User
 from telethon.errors import (
@@ -16,60 +17,97 @@ import ai
 
 logger = logging.getLogger(__name__)
 
+# Constants
+SEND_MESSAGE_TIMEOUT = 10
+DEFAULT_DELAY_MIN = 3.0
+DEFAULT_DELAY_MAX = 10.0
+_AUTH_INPUT_TIMEOUT = 600
+
+# Module-level state (protected by _state_lock)
 client = None
 _bot_loop = None
+_state_lock = threading.Lock()
 
-# Shared authentication state
-auth_state = {
+# Private authentication state
+_auth_state = {
     'status': 'disconnected',  # disconnected | waiting_code | waiting_password | authorized | error
     'error': None,
 }
 
-_auth_code = None
-_auth_password = None
+# Auth input coordination
+_auth_inputs = {'code': None, 'password': None}
 _code_event = threading.Event()
 _password_event = threading.Event()
 
 
-def submit_auth_code(code):
+class AuthTimeoutError(Exception):
+    """Raised when auth input is not received within the timeout"""
+
+
+def get_auth_state() -> dict[str, Any]:
+    """Return a copy of auth state (thread-safe)"""
+    with _state_lock:
+        return dict(_auth_state)
+
+
+def _set_auth_state(status: str | None = None, error: str | None = None) -> None:
+    """Update auth state fields under lock"""
+    with _state_lock:
+        if status is not None:
+            _auth_state['status'] = status
+        if error is not None:
+            _auth_state['error'] = error
+
+
+def _set_auth_status_and_clear_error(status: str) -> None:
+    """Set auth status and clear error under lock"""
+    with _state_lock:
+        _auth_state['status'] = status
+        _auth_state['error'] = None
+
+
+def submit_auth_code(code: str) -> None:
     """Submit authentication code from web UI"""
-    global _auth_code
-    _auth_code = code
-    auth_state['error'] = None
+    _auth_inputs['code'] = code
+    _set_auth_state(error=None)
     _code_event.set()
 
 
-def submit_auth_password(password):
+def submit_auth_password(password: str) -> None:
     """Submit 2FA password from web UI"""
-    global _auth_password
-    _auth_password = password
-    auth_state['error'] = None
+    _auth_inputs['password'] = password
+    _set_auth_state(error=None)
     _password_event.set()
 
 
-async def _wait_for_code(loop):
-    """Wait for auth code from web UI (non-blocking in asyncio)"""
-    global _auth_code
-    _code_event.clear()
-    _auth_code = None
-    await loop.run_in_executor(None, _code_event.wait)
-    code = _auth_code
-    _auth_code = None
-    return code
+async def _wait_for_input(loop: asyncio.AbstractEventLoop, event: threading.Event, key: str, timeout: int = _AUTH_INPUT_TIMEOUT) -> str:
+    """Wait for auth input from web UI (non-blocking in asyncio)
+
+    Args:
+        loop: asyncio event loop
+        event: threading.Event to wait on
+        key: key in _auth_inputs dict ('code' or 'password')
+        timeout: max seconds to wait
+
+    Returns:
+        The input value
+
+    Raises:
+        AuthTimeoutError: if input not received within timeout
+    """
+    event.clear()
+    _auth_inputs[key] = None
+
+    got_input = await loop.run_in_executor(None, event.wait, timeout)
+    if not got_input:
+        raise AuthTimeoutError(f"Timed out waiting for {key} (>{timeout}s)")
+
+    value = _auth_inputs[key]
+    _auth_inputs[key] = None
+    return value
 
 
-async def _wait_for_password(loop):
-    """Wait for 2FA password from web UI (non-blocking in asyncio)"""
-    global _auth_password
-    _password_event.clear()
-    _auth_password = None
-    await loop.run_in_executor(None, _password_event.wait)
-    password = _auth_password
-    _auth_password = None
-    return password
-
-
-def send_message_to_user(user_id, text):
+def send_message_to_user(user_id: int, text: str) -> Any:
     """Send a message to a Telegram user from the Flask thread.
 
     Uses asyncio.run_coroutine_threadsafe to bridge Flask's sync context
@@ -83,16 +121,183 @@ def send_message_to_user(user_id, text):
         RuntimeError: if bot loop or client is not available
         Exception: propagated from Telethon send_message
     """
-    if _bot_loop is None or client is None:
+    with _state_lock:
+        loop = _bot_loop
+        cl = client
+    if loop is None or cl is None:
         raise RuntimeError("Bot is not running")
 
     future = asyncio.run_coroutine_threadsafe(
-        client.send_message(user_id, text), _bot_loop
+        cl.send_message(user_id, text), loop
     )
-    return future.result(timeout=10)
+    return future.result(timeout=SEND_MESSAGE_TIMEOUT)
 
 
-async def start_bot():
+def _create_client(cfg: dict[str, Any]) -> TelegramClient:
+    """Create and return a TelegramClient from config
+
+    Args:
+        cfg: config dict with API_ID, API_HASH
+
+    Returns:
+        TelegramClient instance
+
+    Raises:
+        ValueError: if API_ID is not a valid integer
+    """
+    try:
+        api_id = int(cfg['API_ID'])
+    except (TypeError, ValueError):
+        raise ValueError(f"Invalid API_ID: {cfg.get('API_ID')}")
+    api_hash = cfg['API_HASH']
+    return TelegramClient('data/bot_session', api_id, api_hash)
+
+
+async def _generate_response(sender_id: int, sender_name: str, message_text: str, msg_cfg: dict[str, Any]) -> str:
+    """Generate AI response with fallback to static message
+
+    Args:
+        sender_id: Telegram user ID
+        sender_name: display name of sender
+        message_text: incoming message text
+        msg_cfg: config dict
+
+    Returns:
+        Response message string
+    """
+    openai_key = msg_cfg.get('OPENAI_API_KEY', '')
+    openai_model = msg_cfg.get('OPENAI_MODEL', ai.DEFAULT_MODEL)
+
+    if openai_key:
+        try:
+            recent_messages = await asyncio.to_thread(
+                storage.get_messages_by_sender, sender_id
+            )
+            sender_profile = await asyncio.to_thread(
+                storage.load_sender_profile, sender_id
+            )
+
+            conversation_summary = await ai.summarize_conversation(
+                recent_messages, sender_name,
+                api_key=openai_key, model=openai_model
+            )
+
+            system_prompt = await asyncio.to_thread(config.load_identity)
+            response = await ai.generate_response(
+                system_prompt, conversation_summary,
+                sender_name, message_text,
+                sender_profile=sender_profile,
+                api_key=openai_key, model=openai_model
+            )
+            if response:
+                return response
+        except Exception as e:
+            logger.error("AI response generation failed: %s", e)
+
+    return msg_cfg.get(
+        'AUTO_RESPONSE_MESSAGE',
+        'I will get back to you shortly. Please wait a moment.'
+    )
+
+
+async def _update_sender_profile(sender_id: int, sender_name: str, msg_cfg: dict[str, Any]) -> None:
+    """Update sender profile in background using AI
+
+    Args:
+        sender_id: Telegram user ID
+        sender_name: display name of sender
+        msg_cfg: config dict
+    """
+    openai_key = msg_cfg.get('OPENAI_API_KEY', '')
+    openai_model = msg_cfg.get('OPENAI_MODEL', ai.DEFAULT_MODEL)
+
+    if not openai_key:
+        return
+
+    try:
+        current_profile = await asyncio.to_thread(
+            storage.load_sender_profile, sender_id
+        )
+        recent = await asyncio.to_thread(
+            storage.get_messages_by_sender, sender_id
+        )
+        updated_profile = await ai.update_sender_profile(
+            current_profile, recent, sender_name,
+            api_key=openai_key, model=openai_model
+        )
+        if updated_profile != current_profile:
+            await asyncio.to_thread(
+                storage.save_sender_profile, sender_id, updated_profile
+            )
+            logger.debug("Updated profile for %s", sender_name)
+    except Exception as e:
+        logger.error("Profile update failed for %s: %s", sender_name, e)
+
+
+async def _authenticate(cl: TelegramClient, phone: str, loop: asyncio.AbstractEventLoop) -> None:
+    """Run the full authentication flow (code + optional 2FA password)
+
+    Args:
+        cl: TelegramClient instance
+        phone: phone number string
+        loop: asyncio event loop
+
+    Raises:
+        AuthTimeoutError: if user does not provide input within timeout
+    """
+    if await cl.is_user_authorized():
+        _set_auth_status_and_clear_error('authorized')
+        logger.info("Already authorized")
+        return
+
+    try:
+        await cl.send_code_request(phone)
+    except Exception as e:
+        _set_auth_state(status='error', error=str(e))
+        logger.error("Failed to send code request: %s", e)
+        raise
+
+    _set_auth_state(status='waiting_code')
+    logger.info("Waiting for auth code from web UI...")
+
+    while True:
+        code = await _wait_for_input(loop, _code_event, 'code')
+        try:
+            await cl.sign_in(phone, code)
+            break
+        except PhoneCodeInvalidError:
+            _set_auth_state(status='waiting_code',
+                            error='Invalid verification code. Please try again.')
+            logger.warning("Invalid phone code, retrying...")
+        except PhoneCodeExpiredError:
+            try:
+                await cl.send_code_request(phone)
+            except Exception as e:
+                _set_auth_state(status='error', error=str(e))
+                raise
+            _set_auth_state(status='waiting_code',
+                            error='Verification code expired. A new code has been sent.')
+            logger.warning("Phone code expired, re-sent code")
+        except SessionPasswordNeededError:
+            _set_auth_status_and_clear_error('waiting_password')
+            logger.info("2FA password required, waiting for input from web UI...")
+
+            while True:
+                password = await _wait_for_input(loop, _password_event, 'password')
+                try:
+                    await cl.sign_in(password=password)
+                    break
+                except PasswordHashInvalidError:
+                    _set_auth_state(status='waiting_password',
+                                    error='Invalid password. Please try again.')
+                    logger.warning("Invalid 2FA password, retrying...")
+            break
+
+    _set_auth_status_and_clear_error('authorized')
+    logger.info("Authentication successful")
+
+
+async def start_bot() -> None:
     """Start the Telegram bot"""
     global client, _bot_loop
 
@@ -103,25 +308,22 @@ async def start_bot():
         return
 
     try:
-        api_id = int(cfg['API_ID'])
-    except (TypeError, ValueError):
-        logger.error("Invalid API_ID: %s", cfg.get('API_ID'))
+        cl = _create_client(cfg)
+    except ValueError as e:
+        logger.error("%s", e)
         return
-    api_hash = cfg['API_HASH']
+
+    client = cl
     phone = cfg['PHONE']
 
-    client = TelegramClient('data/bot_session', api_id, api_hash)
-
-    @client.on(events.NewMessage(incoming=True, from_users=None))
+    @cl.on(events.NewMessage(incoming=True, from_users=None))
     async def handle_new_message(event):
         """Handle incoming messages"""
-        # Only process private messages, ignore groups/channels
         if not event.is_private:
             return
 
         sender = await event.get_sender()
 
-        # Get sender name
         if isinstance(sender, User):
             sender_name = sender.first_name or ''
             if sender.last_name:
@@ -131,64 +333,24 @@ async def start_bot():
             sender_name = str(sender.id)
 
         message_text = event.message.message
-
-        # Reload config for each message to pick up changes
         msg_cfg = await asyncio.to_thread(config.load_config)
 
-        # Store received message
         await asyncio.to_thread(
             storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
         )
 
-        # Generate response
-        response_message = None
-        summary = None
-        openai_key = msg_cfg.get('OPENAI_API_KEY', '')
-        openai_model = msg_cfg.get('OPENAI_MODEL', 'gpt-4o-mini')
-
-        if openai_key:
-            try:
-                # Get recent conversation and sender profile
-                recent_messages = await asyncio.to_thread(
-                    storage.get_messages_by_sender, sender.id
-                )
-                sender_profile = await asyncio.to_thread(
-                    storage.load_sender_profile, sender.id
-                )
-
-                # Summarize conversation context
-                conversation_summary = await ai.summarize_conversation(
-                    recent_messages, sender_name,
-                    api_key=openai_key, model=openai_model
-                )
-                summary = conversation_summary
-
-                # Generate AI response with profile context
-                system_prompt = await asyncio.to_thread(config.load_identity)
-                response_message = await ai.generate_response(
-                    system_prompt, conversation_summary,
-                    sender_name, message_text,
-                    sender_profile=sender_profile,
-                    api_key=openai_key, model=openai_model
-                )
-            except Exception as e:
-                logger.error("AI response generation failed: %s", e)
-
-        # Fallback to static message
-        if not response_message:
-            response_message = msg_cfg.get(
-                'AUTO_RESPONSE_MESSAGE',
-                'I will get back to you shortly. Please wait a moment.'
-            )
+        response_message = await _generate_response(
+            sender.id, sender_name, message_text, msg_cfg
+        )
 
         try:
-            delay_min = float(msg_cfg.get('RESPONSE_DELAY_MIN', 3))
+            delay_min = float(msg_cfg.get('RESPONSE_DELAY_MIN', DEFAULT_DELAY_MIN))
         except (TypeError, ValueError):
-            delay_min = 3.0
+            delay_min = DEFAULT_DELAY_MIN
         try:
-            delay_max = float(msg_cfg.get('RESPONSE_DELAY_MAX', 10))
+            delay_max = float(msg_cfg.get('RESPONSE_DELAY_MAX', DEFAULT_DELAY_MAX))
         except (TypeError, ValueError):
-            delay_max = 10.0
+            delay_max = DEFAULT_DELAY_MAX
         if delay_min > delay_max:
             delay_min, delay_max = delay_max, delay_min
         delay = random.uniform(delay_min, delay_max)
@@ -196,105 +358,33 @@ async def start_bot():
         await asyncio.sleep(delay)
         await event.respond(response_message)
 
-        # Store sent response
         await asyncio.to_thread(
             storage.add_message, 'sent', 'Me', response_message, sender_id=sender.id
         )
 
-        # Update sender profile in background (non-blocking)
-        if openai_key:
-            try:
-                current_profile = await asyncio.to_thread(
-                    storage.load_sender_profile, sender.id
-                )
-                recent = await asyncio.to_thread(
-                    storage.get_messages_by_sender, sender.id
-                )
-                updated_profile = await ai.update_sender_profile(
-                    current_profile, recent, sender_name,
-                    api_key=openai_key, model=openai_model
-                )
-                if updated_profile != current_profile:
-                    await asyncio.to_thread(
-                        storage.save_sender_profile, sender.id, updated_profile
-                    )
-                    logger.debug("Updated profile for %s", sender_name)
-            except Exception as e:
-                logger.error("Profile update failed for %s: %s", sender_name, e)
+        await _update_sender_profile(sender.id, sender_name, msg_cfg)
 
         logger.debug("Received message from %s: %s", sender_name, message_text)
         logger.debug("Auto-response sent to %s: %s", sender_name, response_message)
 
-    # Manual authentication flow
-    await client.connect()
+    await cl.connect()
     loop = asyncio.get_event_loop()
-    _bot_loop = loop
+    with _state_lock:
+        _bot_loop = loop
 
-    if await client.is_user_authorized():
-        auth_state['status'] = 'authorized'
-        auth_state['error'] = None
-        logger.info("Already authorized")
-    else:
-        # Send code request
-        try:
-            await client.send_code_request(phone)
-        except Exception as e:
-            auth_state['status'] = 'error'
-            auth_state['error'] = str(e)
-            logger.error("Failed to send code request: %s", e)
-            return
+    try:
+        await _authenticate(cl, phone, loop)
+    except (AuthTimeoutError, Exception) as e:
+        if isinstance(e, AuthTimeoutError):
+            _set_auth_state(status='error', error=str(e))
+            logger.error("Auth timed out: %s", e)
+        return
 
-        auth_state['status'] = 'waiting_code'
-        logger.info("Waiting for auth code from web UI...")
-
-        # Code input loop
-        while True:
-            code = await _wait_for_code(loop)
-            try:
-                await client.sign_in(phone, code)
-                break
-            except PhoneCodeInvalidError:
-                auth_state['status'] = 'waiting_code'
-                auth_state['error'] = 'Invalid verification code. Please try again.'
-                logger.warning("Invalid phone code, retrying...")
-            except PhoneCodeExpiredError:
-                # Re-send code
-                try:
-                    await client.send_code_request(phone)
-                except Exception as e:
-                    auth_state['status'] = 'error'
-                    auth_state['error'] = str(e)
-                    return
-                auth_state['status'] = 'waiting_code'
-                auth_state['error'] = 'Verification code expired. A new code has been sent.'
-                logger.warning("Phone code expired, re-sent code")
-            except SessionPasswordNeededError:
-                # 2FA required
-                auth_state['status'] = 'waiting_password'
-                auth_state['error'] = None
-                logger.info("2FA password required, waiting for input from web UI...")
-
-                # Password input loop
-                while True:
-                    password = await _wait_for_password(loop)
-                    try:
-                        await client.sign_in(password=password)
-                        break
-                    except PasswordHashInvalidError:
-                        auth_state['status'] = 'waiting_password'
-                        auth_state['error'] = 'Invalid password. Please try again.'
-                        logger.warning("Invalid 2FA password, retrying...")
-                break
-
-        auth_state['status'] = 'authorized'
-        auth_state['error'] = None
-        logger.info("Authentication successful")
-
-    print("Bot is running...")
-    await client.run_until_disconnected()
+    logger.info("Bot is running...")
+    await cl.run_until_disconnected()
 
 
-def run_bot():
+def run_bot() -> None:
     """Run the bot in the asyncio event loop"""
     asyncio.run(start_bot())
 

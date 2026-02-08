@@ -2,12 +2,14 @@ import json
 import os
 import threading
 from datetime import datetime, timedelta
+from typing import Any
 
 MESSAGES_DIR = 'data/messages'
 LEGACY_MESSAGES_FILE = 'data/messages.json'
 FALLBACK_SENDER_ID = '_unknown'
 
-# Per-sender file locks to prevent race conditions
+# Per-sender file locks to prevent race conditions (LRU-bounded)
+MAX_LOCKS = 1000
 _locks = {}
 _locks_lock = threading.Lock()
 
@@ -16,25 +18,36 @@ _migration_lock = threading.Lock()
 _migration_done = False
 
 
-def _get_lock(sender_id):
-    """Get or create a lock for a sender_id"""
+def _get_lock(sender_id: str) -> threading.Lock:
+    """Get or create a lock for a sender_id (LRU eviction when over MAX_LOCKS)"""
     with _locks_lock:
-        if sender_id not in _locks:
-            _locks[sender_id] = threading.Lock()
+        if sender_id in _locks:
+            # Move to end (most recently used)
+            _locks[sender_id] = _locks.pop(sender_id)
+            return _locks[sender_id]
+        # Evict oldest unlocked entries if over threshold
+        while len(_locks) >= MAX_LOCKS:
+            oldest_key = next(iter(_locks))
+            lock = _locks[oldest_key]
+            if not lock.locked():
+                del _locks[oldest_key]
+            else:
+                break
+        _locks[sender_id] = threading.Lock()
         return _locks[sender_id]
 
 
-def ensure_messages_dir():
+def ensure_messages_dir() -> None:
     """Ensure messages directory exists"""
     os.makedirs(MESSAGES_DIR, exist_ok=True)
 
 
-def _sender_filepath(sender_id):
+def _sender_filepath(sender_id: str) -> str:
     """Return file path for a sender's messages"""
     return os.path.join(MESSAGES_DIR, f'{sender_id}.json')
 
 
-def _load_sender_messages(sender_id):
+def _load_sender_messages(sender_id: str) -> list[dict[str, Any]]:
     """Load messages for a single sender with 7-day auto-prune"""
     filepath = _sender_filepath(sender_id)
     if not os.path.exists(filepath):
@@ -55,7 +68,7 @@ def _load_sender_messages(sender_id):
     return filtered
 
 
-def _save_sender_messages(sender_id, messages):
+def _save_sender_messages(sender_id: str, messages: list[dict[str, Any]]) -> None:
     """Save messages for a single sender. Deletes file if empty."""
     ensure_messages_dir()
     filepath = _sender_filepath(sender_id)
@@ -69,7 +82,7 @@ def _save_sender_messages(sender_id, messages):
         json.dump(messages, f, indent=2, ensure_ascii=False)
 
 
-def _migrate_legacy_messages():
+def _migrate_legacy_messages() -> None:
     """Migrate legacy messages.json to per-sender files (runs once)"""
     global _migration_done
     if _migration_done:
@@ -107,7 +120,7 @@ def _migrate_legacy_messages():
     os.rename(LEGACY_MESSAGES_FILE, LEGACY_MESSAGES_FILE + '.bak')
 
 
-def load_messages():
+def load_messages() -> list[dict[str, Any]]:
     """Load all messages from all sender files, merged and sorted by time"""
     _migrate_legacy_messages()
     ensure_messages_dir()
@@ -123,24 +136,7 @@ def load_messages():
     return all_messages
 
 
-def save_messages(messages):
-    """Save messages grouped by sender_id (backward-compatible bulk save)"""
-    ensure_messages_dir()
-
-    grouped = {}
-    for msg in messages:
-        sid = msg.get('sender_id')
-        if sid is None:
-            sid = FALLBACK_SENDER_ID
-        else:
-            sid = str(sid)
-        grouped.setdefault(sid, []).append(msg)
-
-    for sid, msgs in grouped.items():
-        _save_sender_messages(sid, msgs)
-
-
-def get_messages_by_sender(sender_id, limit=20):
+def get_messages_by_sender(sender_id: int | str, limit: int = 20) -> list[dict[str, Any]]:
     """Get recent messages for a specific sender
 
     Loads only the sender's file instead of all messages.
@@ -161,12 +157,12 @@ def get_messages_by_sender(sender_id, limit=20):
     return messages[-limit:]
 
 
-def _sender_profile_path(sender_id):
+def _sender_profile_path(sender_id: str) -> str:
     """Return file path for a sender's profile"""
     return os.path.join(MESSAGES_DIR, f'{sender_id}.md')
 
 
-def load_sender_profile(sender_id):
+def load_sender_profile(sender_id: int | str) -> str:
     """Load sender profile markdown. Returns empty string if not exists."""
     ensure_messages_dir()
     sid = str(sender_id)
@@ -178,7 +174,7 @@ def load_sender_profile(sender_id):
             return f.read()
 
 
-def save_sender_profile(sender_id, content):
+def save_sender_profile(sender_id: int | str, content: str) -> None:
     """Save sender profile markdown."""
     ensure_messages_dir()
     sid = str(sender_id)
@@ -188,7 +184,7 @@ def save_sender_profile(sender_id, content):
             f.write(content)
 
 
-def add_message(direction, sender, text, summary=None, sender_id=None):
+def add_message(direction: str, sender: str, text: str, summary: str | None = None, sender_id: int | None = None) -> dict[str, Any]:
     """Add a message to storage
 
     Args:

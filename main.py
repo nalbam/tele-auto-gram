@@ -11,10 +11,13 @@ import signal
 import threading
 import sys
 import time
+from types import FrameType
 from web import run_web_ui
 from bot import run_bot
 import bot
 import config
+
+WEB_STARTUP_DELAY = 2
 
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
@@ -23,16 +26,19 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S',
 )
 
-def _shutdown(signum, frame):
+def _shutdown(signum: int, frame: FrameType | None) -> None:
     """Graceful shutdown handler"""
     print("\n\nShutting down...")
-    if bot.client and bot._bot_loop:
+    with bot._state_lock:
+        cl = bot.client
+        loop = bot._bot_loop
+    if cl and loop:
         import asyncio
-        asyncio.run_coroutine_threadsafe(bot.client.disconnect(), bot._bot_loop)
+        asyncio.run_coroutine_threadsafe(cl.disconnect(), loop)
     sys.exit(0)
 
 
-def main():
+def main() -> None:
     """Main entry point"""
     print("=" * 60)
     print("TeleAutoGram")
@@ -46,7 +52,7 @@ def main():
     web_thread.start()
 
     # Give web server time to start
-    time.sleep(2)
+    time.sleep(WEB_STARTUP_DELAY)
 
     # Check if configured
     if config.is_configured():
