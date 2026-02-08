@@ -1,4 +1,5 @@
 import logging
+import re
 import threading
 from typing import Any
 
@@ -10,8 +11,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = 'gpt-4o-mini'
 DEFAULT_SYSTEM_PROMPT = 'You are a friendly conversational partner. Respond naturally and concisely.'
 
-SUMMARIZE_MAX_TOKENS = 300
-SUMMARIZE_TEMPERATURE = 0.5
+MULTI_TURN_LIMIT = 20
 
 RESPONSE_MAX_TOKENS = 500
 RESPONSE_TEMPERATURE = 0.7
@@ -36,66 +36,104 @@ def _get_client(api_key: str) -> AsyncOpenAI:
         return _client
 
 
-async def summarize_conversation(messages: list[dict[str, Any]], sender_name: str, api_key: str = '', model: str = DEFAULT_MODEL) -> str:
-    """Summarize recent conversation with a sender using OpenAI
+# Regex: matches strings that are ONLY emoji (+ variation selectors, ZWJ, whitespace)
+_EMOJI_ONLY_RE = re.compile(
+    r'^[\U0001F600-\U0001F64F'
+    r'\U0001F300-\U0001F5FF'
+    r'\U0001F680-\U0001F6FF'
+    r'\U0001F1E0-\U0001F1FF'
+    r'\U00002702-\U000027B0'
+    r'\U0000FE00-\U0000FE0F'
+    r'\U0000200D'
+    r'\U00002600-\U000026FF'
+    r'\U0001F900-\U0001F9FF'
+    r'\U0001FA00-\U0001FA6F'
+    r'\U0001FA70-\U0001FAFF'
+    r'\s]+$'
+)
+
+_TRIVIAL_WORDS = frozenset({
+    'ok', 'okay', 'ㅋ', 'ㅋㅋ', 'ㅋㅋㅋ', 'ㅎ', 'ㅎㅎ', 'ㅎㅎㅎ',
+    'ㅇㅇ', 'ㅇㅋ', 'ㄴㄴ', 'ㄱㄱ', 'ㅇ', 'ㅜ', 'ㅠ', 'ㅜㅜ', 'ㅠㅠ',
+    'lol', 'haha', 'hehe', 'hmm', 'ah', 'oh', 'yes', 'no', 'yep', 'nope',
+    'k', 'kk', 'thx', 'ty', 'np',
+    'ㄳ', '넵', '네', '응', '앙', '웅', '굿', '감사',
+})
+
+
+def is_trivial_message(text: str | None) -> bool:
+    """Check if a message is trivial (not worth updating profile for)
 
     Args:
-        messages: List of message dicts with 'direction', 'text', 'sender' keys
-        sender_name: Name of the conversation partner
-        api_key: OpenAI API key
-        model: OpenAI model name
+        text: message text
 
     Returns:
-        Summary string, or empty string if no messages or on failure
+        True if the message is trivial
     """
-    if not messages:
-        return ''
-
-    if not api_key:
-        return ''
-
-    conversation_text = '\n'.join(
-        f"{'Me' if msg['direction'] == 'sent' else sender_name}: {msg['text']}"
-        for msg in messages
-    )
-
-    try:
-        client = _get_client(api_key)
-        response = await client.chat.completions.create(
-            model=model,
-            messages=[
-                {
-                    'role': 'system',
-                    'content': (
-                        f'Below is a recent conversation between me and {sender_name}. '
-                        'Summarize the key topics and context concisely.'
-                    )
-                },
-                {
-                    'role': 'user',
-                    'content': conversation_text
-                }
-            ],
-            max_tokens=SUMMARIZE_MAX_TOKENS,
-            temperature=SUMMARIZE_TEMPERATURE,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error('Failed to summarize conversation: %s', e)
-        return ''
+    if not text:
+        return True
+    stripped = text.strip()
+    if len(stripped) < 3:
+        return True
+    if stripped.lower() in _TRIVIAL_WORDS:
+        return True
+    if _EMOJI_ONLY_RE.match(stripped):
+        return True
+    return False
 
 
-async def generate_response(system_prompt: str, conversation_summary: str, sender_name: str,
-                            incoming_message: str, sender_profile: str = '',
-                            api_key: str = '', model: str = DEFAULT_MODEL) -> str | None:
-    """Generate an AI response based on context
+def build_chat_messages(messages: list[dict[str, Any]], system_prompt: str,
+                        sender_name: str, sender_profile: str = '',
+                        limit: int = MULTI_TURN_LIMIT) -> list[dict[str, str]]:
+    """Build OpenAI multi-turn chat messages from stored conversation history.
+
+    Converts storage messages into OpenAI-compatible message array with
+    system prompt, sender profile, and multi-turn user/assistant messages.
+    Consecutive same-role messages are merged (handles Telegram bursts).
 
     Args:
-        system_prompt: User's persona/style prompt
-        conversation_summary: Summary of recent conversation with sender
-        sender_name: Name of the message sender
-        incoming_message: The incoming message to respond to
-        sender_profile: Markdown profile of the sender (preferences, key facts)
+        messages: List of message dicts with 'direction' and 'text' keys
+        system_prompt: Identity/persona prompt
+        sender_name: Name of the conversation partner
+        sender_profile: Markdown profile of the sender
+        limit: Max number of recent messages to include
+
+    Returns:
+        List of OpenAI message dicts with 'role' and 'content'
+    """
+    # Build system message
+    system_parts = []
+    if system_prompt:
+        system_parts.append(system_prompt)
+    if sender_profile:
+        system_parts.append(f'\n[Profile: {sender_name}]\n{sender_profile}')
+    system_content = '\n'.join(system_parts) if system_parts else DEFAULT_SYSTEM_PROMPT
+
+    chat: list[dict[str, str]] = [{'role': 'system', 'content': system_content}]
+
+    # Take last `limit` messages
+    recent = messages[-limit:] if limit and len(messages) > limit else messages
+
+    for msg in recent:
+        text = msg.get('text')
+        if not text:
+            continue
+        role = 'assistant' if msg.get('direction') == 'sent' else 'user'
+        # Merge consecutive same-role messages
+        if len(chat) > 1 and chat[-1]['role'] == role:
+            chat[-1]['content'] += '\n' + text
+        else:
+            chat.append({'role': role, 'content': text})
+
+    return chat
+
+
+async def generate_response(chat_messages: list[dict[str, str]],
+                            api_key: str = '', model: str = DEFAULT_MODEL) -> str | None:
+    """Generate an AI response from pre-built chat messages.
+
+    Args:
+        chat_messages: List of OpenAI message dicts (from build_chat_messages)
         api_key: OpenAI API key
         model: OpenAI model name
 
@@ -105,28 +143,11 @@ async def generate_response(system_prompt: str, conversation_summary: str, sende
     if not api_key:
         return None
 
-    system_parts = []
-    if system_prompt:
-        system_parts.append(system_prompt)
-    if sender_profile:
-        system_parts.append(
-            f'\n[Profile: {sender_name}]\n{sender_profile}'
-        )
-    if conversation_summary:
-        system_parts.append(
-            f'\n[Recent conversation summary with {sender_name}]\n{conversation_summary}'
-        )
-
-    system_message = '\n'.join(system_parts) if system_parts else DEFAULT_SYSTEM_PROMPT
-
     try:
         client = _get_client(api_key)
         response = await client.chat.completions.create(
             model=model,
-            messages=[
-                {'role': 'system', 'content': system_message},
-                {'role': 'user', 'content': incoming_message}
-            ],
+            messages=chat_messages,
             max_tokens=RESPONSE_MAX_TOKENS,
             temperature=RESPONSE_TEMPERATURE,
         )

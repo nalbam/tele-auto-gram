@@ -154,13 +154,16 @@ def _create_client(cfg: dict[str, Any]) -> TelegramClient:
     return TelegramClient('data/bot_session', api_id, api_hash)
 
 
-async def _generate_response(sender_id: int, sender_name: str, message_text: str, msg_cfg: dict[str, Any]) -> str:
+async def _generate_response(sender_name: str, messages: list[dict[str, Any]],
+                             sender_profile: str, system_prompt: str,
+                             msg_cfg: dict[str, Any]) -> str:
     """Generate AI response with fallback to static message
 
     Args:
-        sender_id: Telegram user ID
         sender_name: display name of sender
-        message_text: incoming message text
+        messages: pre-loaded conversation messages (including current incoming)
+        sender_profile: pre-loaded sender profile markdown
+        system_prompt: pre-loaded identity prompt
         msg_cfg: config dict
 
     Returns:
@@ -171,24 +174,11 @@ async def _generate_response(sender_id: int, sender_name: str, message_text: str
 
     if openai_key:
         try:
-            recent_messages = await asyncio.to_thread(
-                storage.get_messages_by_sender, sender_id
+            chat_messages = ai.build_chat_messages(
+                messages, system_prompt, sender_name, sender_profile
             )
-            sender_profile = await asyncio.to_thread(
-                storage.load_sender_profile, sender_id
-            )
-
-            conversation_summary = await ai.summarize_conversation(
-                recent_messages, sender_name,
-                api_key=openai_key, model=openai_model
-            )
-
-            system_prompt = await asyncio.to_thread(config.load_identity)
             response = await ai.generate_response(
-                system_prompt, conversation_summary,
-                sender_name, message_text,
-                sender_profile=sender_profile,
-                api_key=openai_key, model=openai_model
+                chat_messages, api_key=openai_key, model=openai_model
             )
             if response:
                 return response
@@ -202,7 +192,9 @@ async def _generate_response(sender_id: int, sender_name: str, message_text: str
 
 
 async def _update_sender_profile(sender_id: int, sender_name: str, msg_cfg: dict[str, Any],
-                                 use_all_messages: bool = False) -> None:
+                                 use_all_messages: bool = False,
+                                 messages: list[dict[str, Any]] | None = None,
+                                 sender_profile: str | None = None) -> None:
     """Update sender profile in background using AI
 
     Args:
@@ -211,6 +203,8 @@ async def _update_sender_profile(sender_id: int, sender_name: str, msg_cfg: dict
         msg_cfg: config dict
         use_all_messages: If True, use all stored messages for profile extraction
                           (used for initial profile build from Telegram history)
+        messages: pre-loaded messages (falls back to storage read if None)
+        sender_profile: pre-loaded profile (falls back to storage read if None)
     """
     openai_key = msg_cfg.get('OPENAI_API_KEY', '')
     openai_model = msg_cfg.get('OPENAI_MODEL', ai.DEFAULT_MODEL)
@@ -219,10 +213,10 @@ async def _update_sender_profile(sender_id: int, sender_name: str, msg_cfg: dict
         return
 
     try:
-        current_profile = await asyncio.to_thread(
+        current_profile = sender_profile if sender_profile is not None else await asyncio.to_thread(
             storage.load_sender_profile, sender_id
         )
-        recent = await asyncio.to_thread(
+        recent = messages if messages is not None else await asyncio.to_thread(
             storage.get_messages_by_sender, sender_id
         )
         message_limit = 0 if use_all_messages else ai.PROFILE_RECENT_MESSAGES_LIMIT
@@ -380,15 +374,29 @@ async def start_bot() -> None:
             sender_name = str(sender.id)
 
         message_text = event.message.message
+
+        # FIX #1: Early return for empty messages (media-only)
+        if not message_text:
+            return
+
         msg_cfg = await asyncio.to_thread(config.load_config)
 
-        # Fetch Telegram history if this is a new conversation (no local history)
+        # FIX #2: Centralized data loading — single storage read
         existing_messages = await asyncio.to_thread(
             storage.get_messages_by_sender, sender.id
         )
+
+        # Fetch Telegram history if this is a new conversation (no local history)
         if not existing_messages:
             await _fetch_telegram_history(cl, sender.id, sender_name, event.message.id)
-            await _update_sender_profile(sender.id, sender_name, msg_cfg, use_all_messages=True)
+            existing_messages = await asyncio.to_thread(
+                storage.get_messages_by_sender, sender.id
+            )
+            await _update_sender_profile(sender.id, sender_name, msg_cfg,
+                                         use_all_messages=True, messages=existing_messages)
+
+        sender_profile = await asyncio.to_thread(storage.load_sender_profile, sender.id)
+        system_prompt = await asyncio.to_thread(config.load_identity)
 
         await asyncio.to_thread(
             storage.add_message, 'received', sender_name, message_text, sender_id=sender.id
@@ -400,8 +408,11 @@ async def start_bot() -> None:
         except Exception as e:
             logger.warning("Failed to send read acknowledge: %s", e)
 
+        # FIX #3: Build messages with current incoming for multi-turn context
+        messages_for_ai = existing_messages + [{'direction': 'received', 'text': message_text}]
+
         response_message = await _generate_response(
-            sender.id, sender_name, message_text, msg_cfg
+            sender_name, messages_for_ai, sender_profile, system_prompt, msg_cfg
         )
 
         try:
@@ -423,7 +434,14 @@ async def start_bot() -> None:
             storage.add_message, 'sent', 'Me', response_message, sender_id=sender.id
         )
 
-        await _update_sender_profile(sender.id, sender_name, msg_cfg)
+        # FIX #5: Skip profile update for trivial messages
+        if not ai.is_trivial_message(message_text):
+            all_messages = existing_messages + [
+                {'direction': 'received', 'text': message_text},
+                {'direction': 'sent', 'text': response_message},
+            ]
+            await _update_sender_profile(sender.id, sender_name, msg_cfg,
+                                         messages=all_messages, sender_profile=sender_profile)
 
         logger.debug("Received message from %s: %s", sender_name, message_text)
         logger.debug("Auto-response sent to %s: %s", sender_name, response_message)

@@ -22,55 +22,131 @@ def _mock_completion(content='test response'):
     return response
 
 
-class TestSummarizeConversation:
-    @pytest.mark.asyncio
-    async def test_empty_messages(self):
-        """Returns empty string for empty messages"""
+class TestIsTrivialMessage:
+    def test_none(self):
+        """None is trivial"""
         import ai
-        result = await ai.summarize_conversation([], 'Alice')
-        assert result == ''
+        assert ai.is_trivial_message(None) is True
 
-    @pytest.mark.asyncio
-    async def test_no_api_key(self):
-        """Returns empty string when no API key"""
+    def test_empty_string(self):
+        """Empty string is trivial"""
         import ai
-        messages = [{'direction': 'received', 'text': 'hello'}]
-        result = await ai.summarize_conversation(messages, 'Alice', api_key='')
-        assert result == ''
+        assert ai.is_trivial_message('') is True
 
-    @pytest.mark.asyncio
-    async def test_success(self):
-        """Returns summary from OpenAI"""
+    def test_short_text(self):
+        """Text shorter than 3 chars is trivial"""
         import ai
-        mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            return_value=_mock_completion('Summary of conversation')
-        )
+        assert ai.is_trivial_message('hi') is True
+        assert ai.is_trivial_message('ㅋ') is True
 
-        with patch.object(ai, '_get_client', return_value=mock_client):
-            messages = [
-                {'direction': 'received', 'text': 'hello'},
-                {'direction': 'sent', 'text': 'hi there'}
-            ]
-            result = await ai.summarize_conversation(
-                messages, 'Alice', api_key='test-key'
-            )
-        assert result == 'Summary of conversation'
-
-    @pytest.mark.asyncio
-    async def test_error_returns_empty(self):
-        """Returns empty string on API error"""
+    def test_trivial_words(self):
+        """Known trivial words are detected"""
         import ai
-        mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            side_effect=Exception('API Error')
-        )
+        assert ai.is_trivial_message('ok') is True
+        assert ai.is_trivial_message('ㅋㅋㅋ') is True
+        assert ai.is_trivial_message('haha') is True
+        assert ai.is_trivial_message('넵') is True
 
-        with patch.object(ai, '_get_client', return_value=mock_client):
-            result = await ai.summarize_conversation(
-                [{'direction': 'received', 'text': 'hi'}], 'Alice', api_key='test-key'
-            )
-        assert result == ''
+    def test_trivial_words_case_insensitive(self):
+        """Trivial word check is case-insensitive"""
+        import ai
+        assert ai.is_trivial_message('OK') is True
+        assert ai.is_trivial_message('Okay') is True
+
+    def test_emoji_only(self):
+        """Emoji-only messages are trivial"""
+        import ai
+        assert ai.is_trivial_message('\U0001F600') is True
+        assert ai.is_trivial_message('\U0001F44D\U0001F44D') is True
+
+    def test_substantive_korean(self):
+        """Korean substantive messages are not trivial"""
+        import ai
+        assert ai.is_trivial_message('오늘 회의 몇 시에 해요?') is False
+
+    def test_substantive_english(self):
+        """English substantive messages are not trivial"""
+        import ai
+        assert ai.is_trivial_message('Can we meet tomorrow at 3pm?') is False
+
+    def test_whitespace_only(self):
+        """Whitespace-only is trivial"""
+        import ai
+        assert ai.is_trivial_message('   ') is True
+
+
+class TestBuildChatMessages:
+    def test_empty_messages(self):
+        """Returns only system message for empty input"""
+        import ai
+        result = ai.build_chat_messages([], 'Be friendly', 'Alice')
+        assert len(result) == 1
+        assert result[0]['role'] == 'system'
+        assert result[0]['content'] == 'Be friendly'
+
+    def test_direction_mapping(self):
+        """Maps received→user, sent→assistant"""
+        import ai
+        messages = [
+            {'direction': 'received', 'text': 'hello'},
+            {'direction': 'sent', 'text': 'hi there'},
+        ]
+        result = ai.build_chat_messages(messages, 'system', 'Alice')
+        assert result[1] == {'role': 'user', 'content': 'hello'}
+        assert result[2] == {'role': 'assistant', 'content': 'hi there'}
+
+    def test_consecutive_merge(self):
+        """Merges consecutive same-role messages"""
+        import ai
+        messages = [
+            {'direction': 'received', 'text': 'hello'},
+            {'direction': 'received', 'text': 'are you there?'},
+            {'direction': 'sent', 'text': 'yes'},
+        ]
+        result = ai.build_chat_messages(messages, 'system', 'Alice')
+        # system + merged user + assistant = 3
+        assert len(result) == 3
+        assert result[1]['content'] == 'hello\nare you there?'
+        assert result[1]['role'] == 'user'
+
+    def test_skips_none_text(self):
+        """Skips messages with None text"""
+        import ai
+        messages = [
+            {'direction': 'received', 'text': None},
+            {'direction': 'received', 'text': 'hello'},
+        ]
+        result = ai.build_chat_messages(messages, 'system', 'Alice')
+        assert len(result) == 2
+        assert result[1]['content'] == 'hello'
+
+    def test_includes_profile(self):
+        """Includes sender profile in system message"""
+        import ai
+        result = ai.build_chat_messages([], 'Be friendly', 'Alice',
+                                        sender_profile='- Prefers Korean')
+        system_msg = result[0]['content']
+        assert 'Be friendly' in system_msg
+        assert 'Profile: Alice' in system_msg
+        assert 'Prefers Korean' in system_msg
+
+    def test_default_system_prompt(self):
+        """Uses default system prompt when none provided"""
+        import ai
+        result = ai.build_chat_messages([], '', 'Alice')
+        assert result[0]['content'] == ai.DEFAULT_SYSTEM_PROMPT
+
+    def test_limit(self):
+        """Respects message limit"""
+        import ai
+        messages = [{'direction': 'received', 'text': f'msg{i}'} for i in range(30)]
+        result = ai.build_chat_messages(messages, 'system', 'Alice', limit=5)
+        # system + up to 5 user messages (all same role → merged into 1)
+        assert len(result) == 2
+        # Should contain only last 5 messages
+        assert 'msg25' in result[1]['content']
+        assert 'msg29' in result[1]['content']
+        assert 'msg24' not in result[1]['content']
 
 
 class TestGenerateResponse:
@@ -79,7 +155,7 @@ class TestGenerateResponse:
         """Returns None when no API key"""
         import ai
         result = await ai.generate_response(
-            'system', 'summary', 'Alice', 'hello', api_key=''
+            [{'role': 'system', 'content': 'test'}], api_key=''
         )
         assert result is None
 
@@ -92,53 +168,38 @@ class TestGenerateResponse:
             return_value=_mock_completion('AI response')
         )
 
+        chat_messages = [
+            {'role': 'system', 'content': 'Be friendly'},
+            {'role': 'user', 'content': 'hello'},
+        ]
+
         with patch.object(ai, '_get_client', return_value=mock_client):
             result = await ai.generate_response(
-                'Be friendly', 'summary', 'Alice', 'hello',
-                api_key='test-key'
+                chat_messages, api_key='test-key'
             )
         assert result == 'AI response'
 
     @pytest.mark.asyncio
-    async def test_with_profile(self):
-        """Includes sender profile in system message"""
+    async def test_passes_chat_messages(self):
+        """Passes pre-built chat messages directly to API"""
         import ai
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock(
-            return_value=_mock_completion('profiled response')
+            return_value=_mock_completion('response')
         )
 
-        with patch.object(ai, '_get_client', return_value=mock_client):
-            result = await ai.generate_response(
-                'Be friendly', 'summary', 'Alice', 'hello',
-                sender_profile='- Prefers Korean',
-                api_key='test-key'
-            )
-        assert result == 'profiled response'
-
-        # Verify profile was included in system message
-        call_args = mock_client.chat.completions.create.call_args
-        system_msg = call_args.kwargs['messages'][0]['content']
-        assert 'Profile: Alice' in system_msg
-        assert 'Prefers Korean' in system_msg
-
-    @pytest.mark.asyncio
-    async def test_fallback_system_prompt(self):
-        """Uses default system prompt when none provided"""
-        import ai
-        mock_client = MagicMock()
-        mock_client.chat.completions.create = AsyncMock(
-            return_value=_mock_completion('default response')
-        )
+        chat_messages = [
+            {'role': 'system', 'content': 'Be friendly'},
+            {'role': 'user', 'content': 'hello'},
+            {'role': 'assistant', 'content': 'hi'},
+            {'role': 'user', 'content': 'how are you?'},
+        ]
 
         with patch.object(ai, '_get_client', return_value=mock_client):
-            result = await ai.generate_response(
-                '', '', 'Alice', 'hello', api_key='test-key'
-            )
+            await ai.generate_response(chat_messages, api_key='test-key')
 
         call_args = mock_client.chat.completions.create.call_args
-        system_msg = call_args.kwargs['messages'][0]['content']
-        assert system_msg == ai.DEFAULT_SYSTEM_PROMPT
+        assert call_args.kwargs['messages'] == chat_messages
 
     @pytest.mark.asyncio
     async def test_error_returns_none(self):
@@ -151,7 +212,7 @@ class TestGenerateResponse:
 
         with patch.object(ai, '_get_client', return_value=mock_client):
             result = await ai.generate_response(
-                'system', 'summary', 'Alice', 'hello', api_key='test-key'
+                [{'role': 'system', 'content': 'test'}], api_key='test-key'
             )
         assert result is None
 
