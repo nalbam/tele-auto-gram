@@ -26,7 +26,10 @@ async def start_bot():
     @client.on(events.NewMessage(incoming=True, from_users=None))
     async def handle_new_message(event):
         """Handle incoming messages"""
-        # Skip messages from self
+        # Only process private messages, ignore groups/channels
+        if not event.is_private:
+            return
+        
         if event.is_private:
             sender = await event.get_sender()
             

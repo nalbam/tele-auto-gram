@@ -1,13 +1,8 @@
 from flask import Flask, render_template, request, jsonify
 import config
 import storage
-import threading
-import sys
 
 app = Flask(__name__)
-
-# Bot thread reference
-bot_thread = None
 
 @app.route('/')
 def index():
@@ -29,7 +24,9 @@ def save_config():
         config.save_config(data)
         return jsonify({'status': 'success'})
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        # Log the error server-side but return generic message to client
+        print(f"Error saving configuration: {e}")
+        return jsonify({'status': 'error', 'message': 'Failed to save configuration'}), 500
 
 @app.route('/api/messages', methods=['GET'])
 def get_messages():

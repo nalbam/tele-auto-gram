@@ -2,6 +2,9 @@ import re
 import requests
 from datetime import datetime
 
+# API request timeout in seconds
+API_TIMEOUT = 10
+
 def summarize_message(text):
     """Summarize a message (simple implementation)
     
@@ -44,7 +47,7 @@ def notify_api(summary, sender, notify_url):
         response = requests.post(
             notify_url,
             json=payload,
-            timeout=10
+            timeout=API_TIMEOUT
         )
         
         return {
