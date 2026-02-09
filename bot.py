@@ -23,8 +23,6 @@ DEFAULT_DELAY_MIN = 3.0
 DEFAULT_DELAY_MAX = 10.0
 DEFAULT_READ_RECEIPT_DELAY_MIN = 3.0
 DEFAULT_READ_RECEIPT_DELAY_MAX = 10.0
-DEFAULT_TYPING_DELAY_MIN = 3.0
-DEFAULT_TYPING_DELAY_MAX = 10.0
 HISTORY_FETCH_LIMIT = 50
 _AUTH_INPUT_TIMEOUT = 600
 
@@ -333,26 +331,6 @@ async def _delayed_read_receipt(cl: TelegramClient, event: Any, msg_cfg: dict[st
         logger.warning("Failed to send read acknowledge: %s", e)
 
 
-async def _show_typing_action(cl: TelegramClient, chat_id: int, msg_cfg: dict[str, Any]) -> None:
-    """Show typing action with random delay.
-
-    Args:
-        cl: TelegramClient instance
-        chat_id: Telegram chat ID
-        msg_cfg: config dict with TYPING_DELAY_MIN/MAX
-    """
-    typing_min, typing_max = _parse_delay_config(
-        msg_cfg, 'TYPING_DELAY_MIN', 'TYPING_DELAY_MAX',
-        DEFAULT_TYPING_DELAY_MIN, DEFAULT_TYPING_DELAY_MAX
-    )
-    typing_delay = random.uniform(typing_min, typing_max)
-    try:
-        async with cl.action(chat_id, 'typing'):
-            await asyncio.sleep(typing_delay)
-    except Exception as e:
-        logger.warning("Failed to show typing action: %s", e)
-
-
 async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sender_name: str) -> None:
     """Generate and send AI response to a sender (cancellable).
 
@@ -378,16 +356,21 @@ async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sen
         sender_name, existing_messages, sender_profile, system_prompt, msg_cfg
     )
 
-    # Show typing action
-    await _show_typing_action(cl, sender_id, msg_cfg)
-
     delay_min, delay_max = _parse_delay_config(
         msg_cfg, 'RESPONSE_DELAY_MIN', 'RESPONSE_DELAY_MAX',
         DEFAULT_DELAY_MIN, DEFAULT_DELAY_MAX
     )
     delay = random.uniform(delay_min, delay_max)
     logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
-    await asyncio.sleep(delay)
+    
+    # Show typing action while waiting for response delay
+    try:
+        async with cl.action(sender_id, 'typing'):
+            await asyncio.sleep(delay)
+    except Exception as e:
+        logger.warning("Failed to show typing action: %s", e)
+        # Still wait for the delay even if typing fails
+        await asyncio.sleep(delay)
 
     # Send response - shield prevents cancellation during network send
     try:

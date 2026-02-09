@@ -75,8 +75,6 @@ def load_config() -> dict[str, Any]:
         'RESPONSE_DELAY_MAX': _safe_int(os.getenv('RESPONSE_DELAY_MAX'), 10),
         'READ_RECEIPT_DELAY_MIN': _safe_int(os.getenv('READ_RECEIPT_DELAY_MIN'), 3),
         'READ_RECEIPT_DELAY_MAX': _safe_int(os.getenv('READ_RECEIPT_DELAY_MAX'), 10),
-        'TYPING_DELAY_MIN': _safe_int(os.getenv('TYPING_DELAY_MIN'), 3),
-        'TYPING_DELAY_MAX': _safe_int(os.getenv('TYPING_DELAY_MAX'), 10),
         'RESPOND_TO_BOTS': _safe_bool(os.getenv('RESPOND_TO_BOTS'), False),
     }
 
