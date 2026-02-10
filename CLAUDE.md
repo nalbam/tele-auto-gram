@@ -39,7 +39,6 @@ main.py          # Entrypoint: starts Flask web server + bot in separate thread
 │   ├── _handle_new_message()    # Module-level: Phase A/B message processing
 │   ├── _respond_to_sender()     # Module-level: cancellable AI response task
 │   ├── _delayed_read_receipt()  # Module-level: fire & forget read receipt
-│   ├── _show_typing_action()    # Module-level: show typing indicator with delay
 │   └── _parse_delay_config()    # Helper: parse/validate min/max delay from config
 ├── config.py    # Config from .env → .env.local (override) → data/config.json (file overrides env)
 │   └── _secure_write()          # Atomic file write (tempfile → chmod 0o600 → os.replace)
@@ -75,9 +74,9 @@ Phase B — Cancellable (debounce):
         └─ ai.build_chat_messages: received→user, sent→assistant, consecutive same-role merged
      c. Generate AI response (single OpenAI call with full conversation context)
         └─ Fallback to AUTO_RESPONSE_MESSAGE if no API key or on failure
-     d. Show typing action (TYPING_DELAY_MIN ~ MAX) → simulate "user is typing" indicator
-     e. Random delay (RESPONSE_DELAY_MIN ~ MAX) → send response (asyncio.shield) → store sent message
-     f. Conditional profile update — skip if ALL pending received messages are trivial
+     d. Show typing action + random delay (RESPONSE_DELAY_MIN ~ MAX) → send response (asyncio.shield) → store sent message
+        └─ Typing indicator displays during the response delay period
+     e. Conditional profile update — skip if ALL pending received messages are trivial
         └─ Trivial: empty, <3 chars, emoji-only, common filler words (ok, ㅋㅋ, etc.)
 ```
 
@@ -107,7 +106,7 @@ I/O budget per message: config read 2x (Phase A + Phase B), storage read 3x (mes
 ## Configuration
 
 Required env vars (or set via web UI): `API_ID`, `API_HASH`, `PHONE` (with country code like +82).
-Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESPONSE_DELAY_MIN`, `RESPONSE_DELAY_MAX`, `READ_RECEIPT_DELAY_MIN`, `READ_RECEIPT_DELAY_MAX`, `TYPING_DELAY_MIN`, `TYPING_DELAY_MAX`, `RESPOND_TO_BOTS` (default: false), `LOG_LEVEL`, `HOST`, `PORT`, `WEB_TOKEN`, `SECRET_KEY`.
+Optional: `AUTO_RESPONSE_MESSAGE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `RESPONSE_DELAY_MIN`, `RESPONSE_DELAY_MAX`, `READ_RECEIPT_DELAY_MIN`, `READ_RECEIPT_DELAY_MAX`, `RESPOND_TO_BOTS` (default: false), `LOG_LEVEL`, `HOST`, `PORT`, `WEB_TOKEN`, `SECRET_KEY`.
 
 AI identity/persona is defined in `data/IDENTITY.md` (auto-created with defaults if missing, editable via web UI).
 
