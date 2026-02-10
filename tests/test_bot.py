@@ -43,6 +43,13 @@ def _make_client():
     """Create a mock TelegramClient"""
     cl = AsyncMock()
     cl.send_read_acknowledge = AsyncMock()
+    
+    # Mock the action method to return an async context manager
+    async_cm = AsyncMock()
+    async_cm.__aenter__ = AsyncMock(return_value=None)
+    async_cm.__aexit__ = AsyncMock(return_value=None)
+    cl.action = MagicMock(return_value=async_cm)
+    
     return cl
 
 
@@ -96,84 +103,12 @@ class TestDelayedReadReceipt:
             assert bot.DEFAULT_READ_RECEIPT_DELAY_MIN <= delay <= bot.DEFAULT_READ_RECEIPT_DELAY_MAX
 
 
-class TestShowTypingAction:
-    @pytest.mark.asyncio
-    async def test_shows_typing_action(self):
-        """Typing action is shown with delay"""
-        cl = _make_client()
-        cl.action = MagicMock()
-        
-        # Create a mock async context manager for the action
-        async_cm = AsyncMock()
-        async_cm.__aenter__ = AsyncMock(return_value=None)
-        async_cm.__aexit__ = AsyncMock(return_value=None)
-        cl.action.return_value = async_cm
-        
-        chat_id = 123
-        msg_cfg = {'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'}
-
-        with patch('bot.asyncio.sleep', new_callable=AsyncMock):
-            await bot._show_typing_action(cl, chat_id, msg_cfg)
-
-        cl.action.assert_called_once_with(chat_id, 'typing')
-
-    @pytest.mark.asyncio
-    async def test_handles_exception(self):
-        """Doesn't raise on typing action failure"""
-        cl = _make_client()
-        cl.action = MagicMock(side_effect=Exception("network error"))
-        chat_id = 123
-        msg_cfg = {'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'}
-
-        with patch('bot.asyncio.sleep', new_callable=AsyncMock):
-            await bot._show_typing_action(cl, chat_id, msg_cfg)
-
-    @pytest.mark.asyncio
-    async def test_swaps_min_max_when_inverted(self):
-        """Handles inverted min/max delay values"""
-        cl = _make_client()
-        cl.action = MagicMock()
-        
-        async_cm = AsyncMock()
-        async_cm.__aenter__ = AsyncMock(return_value=None)
-        async_cm.__aexit__ = AsyncMock(return_value=None)
-        cl.action.return_value = async_cm
-        
-        chat_id = 123
-        msg_cfg = {'TYPING_DELAY_MIN': '5', 'TYPING_DELAY_MAX': '1'}
-
-        with patch('bot.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
-            await bot._show_typing_action(cl, chat_id, msg_cfg)
-            # sleep should have been called with a value between 1 and 5
-            delay = mock_sleep.call_args[0][0]
-            assert 1.0 <= delay <= 5.0
-
-    @pytest.mark.asyncio
-    async def test_uses_defaults_for_invalid_config(self):
-        """Falls back to defaults for invalid config values"""
-        cl = _make_client()
-        cl.action = MagicMock()
-        
-        async_cm = AsyncMock()
-        async_cm.__aenter__ = AsyncMock(return_value=None)
-        async_cm.__aexit__ = AsyncMock(return_value=None)
-        cl.action.return_value = async_cm
-        
-        chat_id = 123
-        msg_cfg = {'TYPING_DELAY_MIN': 'invalid', 'TYPING_DELAY_MAX': None}
-
-        with patch('bot.asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
-            await bot._show_typing_action(cl, chat_id, msg_cfg)
-            delay = mock_sleep.call_args[0][0]
-            assert bot.DEFAULT_TYPING_DELAY_MIN <= delay <= bot.DEFAULT_TYPING_DELAY_MAX
-
-
 class TestRespondToSender:
     def _patch_to_thread(self):
         """Create a mock for asyncio.to_thread that routes to correct return values"""
         call_count = {'n': 0}
         returns = [
-            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'},
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
             [{'direction': 'received', 'text': 'hello'}],  # storage.get_messages_by_sender
             '',  # storage.load_sender_profile
             'Be friendly',  # config.load_identity
@@ -198,7 +133,6 @@ class TestRespondToSender:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='AI reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True):
 
@@ -218,7 +152,6 @@ class TestRespondToSender:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='AI reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', side_effect=raise_cancelled):
 
             with pytest.raises(asyncio.CancelledError):
@@ -238,8 +171,7 @@ class TestRespondToSender:
             raise asyncio.CancelledError()
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
-             patch.object(bot, '_generate_response', side_effect=raise_cancelled), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock):
+             patch.object(bot, '_generate_response', side_effect=raise_cancelled):
 
             with pytest.raises(asyncio.CancelledError):
                 await bot._respond_to_sender(cl, event, 123, 'Test User')
@@ -255,7 +187,6 @@ class TestRespondToSender:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Nice!'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=False), \
              patch.object(bot, '_update_sender_profile', new_callable=AsyncMock) as mock_profile:
@@ -277,7 +208,6 @@ class TestRespondToSender:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True), \
              patch.object(bot, '_update_sender_profile', new_callable=AsyncMock) as mock_profile:
@@ -299,7 +229,7 @@ class TestRespondToSender:
 
         call_count = {'n': 0}
         returns = [
-            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'},
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
             # Storage has both messages (stored in Phase A before this task)
             [
                 {'direction': 'received', 'text': 'I just got promoted at work!'},
@@ -317,7 +247,6 @@ class TestRespondToSender:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Congrats!'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot, '_update_sender_profile', new_callable=AsyncMock) as mock_profile:
             # Use REAL is_trivial_message — no patch
@@ -334,7 +263,7 @@ class TestRespondToSender:
 
         call_count = {'n': 0}
         returns = [
-            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'},
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
             [
                 {'direction': 'received', 'text': 'ok'},
                 {'direction': 'received', 'text': 'ㅋㅋ'},
@@ -351,7 +280,6 @@ class TestRespondToSender:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot, '_update_sender_profile', new_callable=AsyncMock) as mock_profile:
             await bot._respond_to_sender(cl, event, 123, 'Test User')
@@ -366,7 +294,7 @@ class TestRespondToSender:
 
         call_count = {'n': 0}
         returns = [
-            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'},
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
             [
                 # Old non-trivial message BEFORE the last sent — should not count
                 {'direction': 'received', 'text': 'I work at Google!'},
@@ -386,7 +314,6 @@ class TestRespondToSender:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot, '_update_sender_profile', new_callable=AsyncMock) as mock_profile:
             await bot._respond_to_sender(cl, event, 123, 'Test User')
@@ -440,7 +367,7 @@ class TestDebounce:
                     {'direction': 'received', 'text': 'msg3'},
                 ]
             elif func is config.load_config:
-                return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'}
+                return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'}
             elif func is storage.load_sender_profile:
                 return ''
             elif func is config.load_identity:
@@ -458,7 +385,6 @@ class TestDebounce:
 
         with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
              patch.object(bot, '_generate_response', side_effect=capture_generate), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True):
 
@@ -810,8 +736,7 @@ class TestHandleNewMessage:
             if func is config.load_config:
                 return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
                         'RESPONSE_DELAY_MAX': '0', 'READ_RECEIPT_DELAY_MIN': '0',
-                        'READ_RECEIPT_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0',
-                        'TYPING_DELAY_MAX': '0'}
+                        'READ_RECEIPT_DELAY_MAX': '0'}
             elif func is storage.is_history_synced:
                 return True
             elif func is storage.get_messages_by_sender:
@@ -824,7 +749,6 @@ class TestHandleNewMessage:
 
         with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Hello!'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True):
             await bot._handle_new_message(cl, event)
@@ -845,7 +769,7 @@ class TestHandleNewMessage:
         async def mock_to_thread(func, *args, **kwargs):
             if func is config.load_config:
                 return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
-                        'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'}
+                        'RESPONSE_DELAY_MAX': '0'}
             elif func is storage.is_history_synced:
                 return False  # Not yet synced
             elif func is storage.mark_history_synced:
@@ -865,7 +789,6 @@ class TestHandleNewMessage:
         with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
              patch.object(bot, '_fetch_telegram_history', side_effect=mock_fetch), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True):
             await bot._handle_new_message(cl, event)
@@ -881,7 +804,7 @@ class TestHandleNewMessage:
         async def mock_to_thread(func, *args, **kwargs):
             if func is config.load_config:
                 return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
-                        'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'}
+                        'RESPONSE_DELAY_MAX': '0'}
             elif func is storage.is_history_synced:
                 return True
             elif func is storage.get_messages_by_sender:
@@ -894,7 +817,6 @@ class TestHandleNewMessage:
 
         with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True):
             await bot._handle_new_message(cl, event)
@@ -956,7 +878,7 @@ class TestRespondToSenderErrorHandling:
         call_count = {'n': 0}
         stored_calls = []
         returns = [
-            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'},
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
             [{'direction': 'received', 'text': 'hello'}],
             '',
             'Be friendly',
@@ -973,7 +895,6 @@ class TestRespondToSenderErrorHandling:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='AI reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock):
             await bot._respond_to_sender(cl, event, 123, 'Test User')
 
@@ -989,7 +910,7 @@ class TestRespondToSenderErrorHandling:
 
         call_count = {'n': 0}
         returns = [
-            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'},
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
             [{'direction': 'received', 'text': 'hello'}],
             '',
             'Be friendly',
@@ -1004,7 +925,6 @@ class TestRespondToSenderErrorHandling:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='AI reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch('bot.storage.add_message') as mock_add:
             with pytest.raises(asyncio.CancelledError):
@@ -1032,8 +952,7 @@ class TestPhaseAStorageFailure:
             if func is config.load_config:
                 return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
                         'RESPONSE_DELAY_MAX': '0', 'READ_RECEIPT_DELAY_MIN': '0',
-                        'READ_RECEIPT_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0',
-                        'TYPING_DELAY_MAX': '0'}
+                        'READ_RECEIPT_DELAY_MAX': '0'}
             elif func is storage.is_history_synced:
                 return True
             elif func is storage.get_messages_by_sender:
@@ -1046,7 +965,6 @@ class TestPhaseAStorageFailure:
 
         with patch('bot.asyncio.to_thread', side_effect=mock_to_thread), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Hi!'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True):
             await bot._handle_new_message(cl, event)
@@ -1076,7 +994,7 @@ class TestShieldedSend:
 
         call_count = {'n': 0}
         returns = [
-            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'},
+            {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0', 'RESPONSE_DELAY_MAX': '0'},
             [{'direction': 'received', 'text': 'hello'}],
             '',
             'Be friendly',
@@ -1089,7 +1007,6 @@ class TestShieldedSend:
 
         with patch('bot.asyncio.to_thread', side_effect=side_effect), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='AI reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch('bot.storage.add_message') as mock_add:
 
@@ -1121,8 +1038,7 @@ class TestBotAccountHandling:
                 return {
                     'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
                     'RESPONSE_DELAY_MAX': '0', 'READ_RECEIPT_DELAY_MIN': '0',
-                    'READ_RECEIPT_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0',
-                    'TYPING_DELAY_MAX': '0',
+                    'READ_RECEIPT_DELAY_MAX': '0',
                     'RESPOND_TO_BOTS': respond_to_bots,
                 }
             elif func is storage.is_history_synced:
@@ -1169,7 +1085,6 @@ class TestBotAccountHandling:
 
         with patch('bot.asyncio.to_thread', side_effect=self._mock_to_thread(respond_to_bots=True)), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Hello bot!'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True):
             await bot._handle_new_message(cl, event)
@@ -1185,7 +1100,6 @@ class TestBotAccountHandling:
 
         with patch('bot.asyncio.to_thread', side_effect=self._mock_to_thread(respond_to_bots=False)), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Hi!'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True):
             await bot._handle_new_message(cl, event)
@@ -1232,7 +1146,7 @@ class TestSyncMarkerOrder:
             name = func.__name__ if hasattr(func, '__name__') else ''
             if func is config.load_config:
                 return {'OPENAI_API_KEY': 'test', 'RESPONSE_DELAY_MIN': '0',
-                        'RESPONSE_DELAY_MAX': '0', 'TYPING_DELAY_MIN': '0', 'TYPING_DELAY_MAX': '0'}
+                        'RESPONSE_DELAY_MAX': '0'}
             elif func is storage.add_message:
                 return None
             elif func is storage.is_history_synced:
@@ -1258,7 +1172,6 @@ class TestSyncMarkerOrder:
              patch.object(bot, '_fetch_telegram_history', side_effect=mock_fetch), \
              patch.object(bot, '_update_sender_profile', side_effect=mock_profile), \
              patch.object(bot, '_generate_response', new_callable=AsyncMock, return_value='Reply'), \
-             patch.object(bot, '_show_typing_action', new_callable=AsyncMock), \
              patch('bot.asyncio.sleep', new_callable=AsyncMock), \
              patch.object(bot.ai, 'is_trivial_message', return_value=True):
             await bot._handle_new_message(cl, event)
