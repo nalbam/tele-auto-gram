@@ -90,8 +90,9 @@ bg_restart() {
     git pull
     # Copy identity AFTER git pull to use the latest example file
     # Note: This will overwrite any local customizations in data/IDENTITY.md
+    # Errors are non-fatal - restart continues even if copy fails
     if [ "$copy_identity" = "--copy-identity" ]; then
-        _copy_identity
+        _copy_identity || true
     fi
     sleep 1
     bg_start
@@ -206,8 +207,9 @@ svc_restart() {
     git pull
     # Copy identity AFTER git pull to use the latest example file
     # Note: This will overwrite any local customizations in data/IDENTITY.md
+    # Errors are non-fatal - restart continues even if copy fails
     if [ "$copy_identity" = "--copy-identity" ]; then
-        _copy_identity
+        _copy_identity || true
     fi
     if [ "$OS" = "Linux" ]; then
         sudo systemctl restart "$APP_NAME"
