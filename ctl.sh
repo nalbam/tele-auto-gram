@@ -33,6 +33,24 @@ _require_python() {
     fi
 }
 
+_copy_identity() {
+    local src="$APP_DIR/example/IDENTITY.md"
+    local dst="$APP_DIR/data/IDENTITY.md"
+    
+    if [ ! -f "$src" ]; then
+        echo "Error: Source file not found: $src"
+        return 1
+    fi
+    
+    mkdir -p "$APP_DIR/data"
+    if cp "$src" "$dst"; then
+        echo "Copied $src -> $dst"
+    else
+        echo "Error: Failed to copy file"
+        return 1
+    fi
+}
+
 # --- background commands ---
 
 bg_start() {
@@ -65,10 +83,17 @@ bg_stop() {
 }
 
 bg_restart() {
+    local copy_identity="${1:-}"
     bg_stop
     cd "$APP_DIR"
     echo "Pulling latest changes..."
     git pull
+    # Copy identity AFTER git pull to use the latest example file
+    # Note: This will overwrite any local customizations in data/IDENTITY.md
+    # Errors are non-fatal - restart continues even if copy fails
+    if [ "$copy_identity" = "--copy-identity" ]; then
+        _copy_identity || true
+    fi
     sleep 1
     bg_start
 }
@@ -176,9 +201,16 @@ svc_stop() {
 }
 
 svc_restart() {
+    local copy_identity="${1:-}"
     cd "$APP_DIR"
     echo "Pulling latest changes..."
     git pull
+    # Copy identity AFTER git pull to use the latest example file
+    # Note: This will overwrite any local customizations in data/IDENTITY.md
+    # Errors are non-fatal - restart continues even if copy fails
+    if [ "$copy_identity" = "--copy-identity" ]; then
+        _copy_identity || true
+    fi
     if [ "$OS" = "Linux" ]; then
         sudo systemctl restart "$APP_NAME"
         echo "Service restarted"
@@ -226,38 +258,44 @@ svc_status() {
 
 usage() {
     cat << EOF
-Usage: $0 <command>
+Usage: $0 <command> [options]
 
 Background:
-  start       Start in background
-  stop        Stop background process
-  restart     Restart background process
-  status      Show background process status
-  logs        Tail background log
+  start                Start in background
+  stop                 Stop background process
+  restart              Restart background process
+  restart --copy-identity  Restart and copy example/IDENTITY.md to data/IDENTITY.md
+  status               Show background process status
+  logs                 Tail background log
 
 Service (systemd on Linux, launchd on macOS):
-  install     Register as system service
-  uninstall   Remove system service
-  svc-start   Start service
-  svc-stop    Stop service
-  svc-restart Restart service
-  svc-status  Show service status
-  svc-logs    Tail service logs
+  install              Register as system service
+  uninstall            Remove system service
+  svc-start            Start service
+  svc-stop             Stop service
+  svc-restart          Restart service
+  svc-restart --copy-identity  Restart service and copy example/IDENTITY.md to data/IDENTITY.md
+  svc-status           Show service status
+  svc-logs             Tail service logs
+
+Utilities:
+  copy-identity        Copy example/IDENTITY.md to data/IDENTITY.md
 EOF
 }
 
 case "${1:-}" in
     start)       bg_start ;;
     stop)        bg_stop ;;
-    restart)     bg_restart ;;
+    restart)     bg_restart "$2" ;;
     status)      bg_status ;;
     logs)        bg_logs ;;
     install)     svc_install ;;
     uninstall)   svc_uninstall ;;
     svc-start)   svc_start ;;
     svc-stop)    svc_stop ;;
-    svc-restart) svc_restart ;;
+    svc-restart) svc_restart "$2" ;;
     svc-status)  svc_status ;;
     svc-logs)    svc_logs ;;
+    copy-identity) _copy_identity ;;
     *)           usage ;;
 esac
