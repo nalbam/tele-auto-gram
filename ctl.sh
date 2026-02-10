@@ -43,8 +43,12 @@ _copy_identity() {
     fi
     
     mkdir -p "$APP_DIR/data"
-    cp "$src" "$dst"
-    echo "Copied $src -> $dst"
+    if cp "$src" "$dst"; then
+        echo "Copied $src -> $dst"
+    else
+        echo "Error: Failed to copy file"
+        return 1
+    fi
 }
 
 # --- background commands ---
@@ -84,6 +88,8 @@ bg_restart() {
     cd "$APP_DIR"
     echo "Pulling latest changes..."
     git pull
+    # Copy identity AFTER git pull to use the latest example file
+    # Note: This will overwrite any local customizations in data/IDENTITY.md
     if [ "$copy_identity" = "--copy-identity" ]; then
         _copy_identity
     fi
@@ -198,6 +204,8 @@ svc_restart() {
     cd "$APP_DIR"
     echo "Pulling latest changes..."
     git pull
+    # Copy identity AFTER git pull to use the latest example file
+    # Note: This will overwrite any local customizations in data/IDENTITY.md
     if [ "$copy_identity" = "--copy-identity" ]; then
         _copy_identity
     fi
