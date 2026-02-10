@@ -74,7 +74,8 @@ Phase B — Cancellable (debounce):
         └─ ai.build_chat_messages: received→user, sent→assistant, consecutive same-role merged
      c. Generate AI response (single OpenAI call with full conversation context)
         └─ Fallback to AUTO_RESPONSE_MESSAGE if no API key or on failure
-     d. Random delay (RESPONSE_DELAY_MIN ~ MAX) → send response (asyncio.shield) → store sent message
+     d. Show typing action + random delay (RESPONSE_DELAY_MIN ~ MAX) → send response (asyncio.shield) → store sent message
+        └─ Typing indicator displays during the response delay period
      e. Conditional profile update — skip if ALL pending received messages are trivial
         └─ Trivial: empty, <3 chars, emoji-only, common filler words (ok, ㅋㅋ, etc.)
 ```

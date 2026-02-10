@@ -362,7 +362,17 @@ async def _respond_to_sender(cl: TelegramClient, event: Any, sender_id: int, sen
     )
     delay = random.uniform(delay_min, delay_max)
     logger.debug("Waiting %.2f seconds before auto-response to %s", delay, sender_name)
-    await asyncio.sleep(delay)
+    
+    # Show typing action while waiting for response delay
+    # If typing fails, still wait for the delay without typing
+    try:
+        async with cl.action(sender_id, 'typing'):
+            await asyncio.sleep(delay)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.warning("Failed to show typing action: %s", e)
+        await asyncio.sleep(delay)
 
     # Send response - shield prevents cancellation during network send
     try:

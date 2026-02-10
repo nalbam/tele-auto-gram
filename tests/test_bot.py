@@ -43,6 +43,13 @@ def _make_client():
     """Create a mock TelegramClient"""
     cl = AsyncMock()
     cl.send_read_acknowledge = AsyncMock()
+    
+    # Mock the action method to return an async context manager
+    async_cm = AsyncMock()
+    async_cm.__aenter__ = AsyncMock(return_value=None)
+    async_cm.__aexit__ = AsyncMock(return_value=None)
+    cl.action = MagicMock(return_value=async_cm)
+    
     return cl
 
 
